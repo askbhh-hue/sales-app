@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>مندوب المبيعات - بني سويف</title>
+<style>
+:root{--bg:#f6f8f5;--card:#fff;--tx:#17211a;--mu:#5d6b61;--pr:#2e7d32;--prt:#fff;--bd:#d9e1d9;--red:#c62828;--grn:#2e7d32;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#101611;--card:#1a231c;--tx:#e8efe9;--mu:#9aa89d;--pr:#66bb6a;--prt:#0b140c;--bd:#2c3a2e;--red:#ef7a7a;--grn:#81c784}}
+:root[data-theme="dark"]{--bg:#101611;--card:#1a231c;--tx:#e8efe9;--mu:#9aa89d;--pr:#66bb6a;--prt:#0b140c;--bd:#2c3a2e;--red:#ef7a7a;--grn:#81c784}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font:18px/1.5 system-ui,"Segoe UI",Tahoma,Arial,sans-serif;padding-bottom:96px}
+main{max-width:640px;margin:0 auto;padding:14px}
+h2{margin:6px 0 12px;font-size:22px}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:14px;padding:14px;margin-bottom:10px}
+.row{display:flex;gap:10px;align-items:center}.row>*{flex:1}
+.btn{display:block;width:100%;min-height:60px;border:0;border-radius:14px;background:var(--pr);color:var(--prt);font:600 18px inherit;font-family:inherit;margin-bottom:10px;cursor:pointer;text-align:center;text-decoration:none;padding:14px;line-height:1.3}
+.btn.t{background:var(--card);color:var(--tx);border:2px solid var(--pr)}
+.btn:disabled,.btn.off{opacity:.45;pointer-events:none}
+input,select{width:100%;min-height:54px;font:inherit;padding:10px 14px;border:1px solid var(--bd);border-radius:12px;background:var(--card);color:var(--tx);margin-bottom:10px}
+.stat{display:flex;justify-content:space-between;align-items:center;font-size:20px}.stat b{font-size:28px}
+.mu{color:var(--mu);font-size:15px}.red{color:var(--red)}.grn{color:var(--grn)}
+.item{display:flex;justify-content:space-between;align-items:center;gap:10px;width:100%;text-align:right;font:inherit;color:inherit;background:var(--card);border:1px solid var(--bd);border-radius:14px;padding:14px;margin-bottom:8px;min-height:64px;cursor:pointer}
+.big{font-size:40px;font-weight:700;text-align:center}
+.qb{width:46px;height:46px;border-radius:50%;border:2px solid var(--pr);background:none;color:var(--tx);font-size:24px;cursor:pointer}
+nav{position:fixed;bottom:0;left:0;right:0;display:flex;background:var(--card);border-top:1px solid var(--bd);padding-bottom:env(safe-area-inset-bottom,0px)}
+nav button{flex:1;min-height:72px;border:0;background:none;color:var(--mu);font:600 15px inherit;font-family:inherit;cursor:pointer}
+nav button.on{color:var(--pr)}nav i{display:block;font-style:normal;font-size:26px}
+#toast{position:fixed;bottom:110px;left:50%;transform:translateX(-50%);background:#222;color:#fff;padding:12px 20px;border-radius:12px;display:none;z-index:9}
+</style>
+</head>
+<body>
+<main id="main"></main>
+<nav><button id="n-today" onclick="go('today')"><i>📊</i>اليوم</button><button id="n-cust" onclick="go('cust')"><i>👥</i>العملاء</button><button id="n-prod" onclick="go('prod')"><i>📦</i>المنتجات</button><button id="n-map" onclick="go('map')"><i>🗺️</i>الخريطة</button></nav>
+<div id="toast"></div>
+<script>
+const K='fs_v1',CATS=['أسمدة','مبيدات','تقاوي','منظمات نمو','أخرى'],UNITS=['شيكارة','زجاجة','لتر','كيلو','علبة'],MZ=['بني سويف','ناصر','إهناسيا','ببا','الفشن','سمسطا','الواسطى'];
+let S=null;try{S=JSON.parse(localStorage.getItem(K))}catch(_){}
+S=S||{products:[],customers:[],orders:[],ledger:[],visits:[]};
+let v={tab:'today'},cart={},pos=null;
+const save=()=>{try{localStorage.setItem(K,JSON.stringify(S))}catch(_){toast('تعذر الحفظ على المتصفح')}};
+const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+const e=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const M=n=>(Math.round(n*100)/100).toLocaleString('ar-EG')+' ج';
+const $=i=>document.getElementById(i);
+const P=i=>S.products.find(p=>p.id===i),C=i=>S.customers.find(c=>c.id===i);
+const bal=c=>S.ledger.filter(l=>l.cid===c).reduce((s,l)=>s+(l.type==='OWES'?l.amt:-l.amt),0);
+const day0=()=>{const d=new Date();d.setHours(0,0,0,0);return d.getTime()};
+function toast(m){const t=$('toast');t.textContent=m;t.style.display='block';setTimeout(()=>t.style.display='none',2200)}
+function go(t){v={tab:t};cart={};render()}
+function open_(c){v={tab:'cust',cid:c};render()}
+function balHTML(b){return b>0?`<span class="red">عليه ${M(b)}</span>`:b<0?`<span class="grn">ليه ${M(-b)}</span>`:'<span class="mu">صفر</span>'}
+
+function render(){
+  ['today','cust','prod','map'].forEach(t=>$('n-'+t).classList.toggle('on',v.tab===t));
+  $('main').innerHTML=v.cid?custView():v.order?orderView():v.addc?addCustView():v.tab==='cust'?custList():v.tab==='prod'?prodView():v.tab==='map'?mapView():todayView();
+  window.scrollTo(0,0);
+}
+
+// ---------- TODAY ----------
+function summary(){const s=day0(),e2=s+864e5,inr=t=>t>=s&&t<e2;
+  return{v:S.visits.filter(x=>inr(x.t)).length,o:S.orders.filter(x=>inr(x.t)).length,c:S.ledger.filter(x=>x.type==='PAID'&&inr(x.t)).reduce((a,x)=>a+x.amt,0)}}
+function todayView(){const d=summary();
+  return `<h2>ملخص اليوم</h2>
+  <div class="card stat">الزيارات<b>${d.v}</b></div>
+  <div class="card stat">الطلبات<b>${d.o}</b></div>
+  <div class="card stat">التحصيلات<b>${M(d.c)}</b></div>
+  <a class="btn t" target="_blank" href="https://wa.me/?text=${encodeURIComponent(`تقرير اليوم\nالزيارات: ${d.v}\nالطلبات: ${d.o}\nالتحصيلات: ${d.c} جنيه`)}">📤 ابعت التقرير واتساب</a>
+  <h2 style="margin-top:24px">نسخة احتياطية</h2>
+  <p class="mu">البيانات محفوظة على المتصفح ده. خد نسخة بشكل دوري.</p>
+  <button class="btn t" onclick="backup()">نسخ البيانات</button>
+  <button class="btn t" onclick="restore()">استرجاع من نسخة</button>`}
+async function backup(){try{await navigator.clipboard.writeText(JSON.stringify(S));toast('تم النسخ، الصقه في ملاحظات أو واتساب')}catch(_){prompt('انسخ النص ده واحفظه:',JSON.stringify(S))}}
+function restore(){const t=prompt('الصق النسخة الاحتياطية:');if(!t)return;try{const d=JSON.parse(t);if(!d.customers||!d.products)throw 0;S=d;save();toast('تم الاسترجاع');render()}catch(_){toast('النص غير صالح')}}
+
+// ---------- CUSTOMERS ----------
+function custCards(q){q=(q||'').trim();
+  const l=S.customers.filter(c=>!q||[c.name,c.village,c.shop].join(' ').includes(q));
+  return l.length?l.map(c=>`<button class="item" onclick="open_('${c.id}')"><span><b>${e(c.name)}</b><br><span class="mu">${e([c.shop,c.village,c.mz].filter(Boolean).join(' - '))}</span></span><b>${balHTML(bal(c.id))}</b></button>`).join(''):'<p class="mu">مفيش عملاء</p>'}
+function fc(q){$('list').innerHTML=custCards(q)}
+function custList(){return `<button class="btn" onclick="v={tab:'cust',addc:1};pos=null;render()">➕ عميل جديد</button><input placeholder="🔍 ابحث بالاسم أو القرية" oninput="fc(this.value)"><div id="list">${custCards('')}</div>`}
+function addCustView(){return `<button class="btn t" onclick="go('cust')">→ رجوع</button><h2>عميل جديد</h2>
+  <input id="cn" placeholder="اسم العميل"><input id="cp" type="tel" placeholder="رقم التليفون"><input id="cs" placeholder="اسم المحل / المزرعة">
+  <select id="cm"><option value="">المركز</option>${MZ.map(m=>`<option>${m}</option>`).join('')}</select>
+  <input id="cv" placeholder="القرية"><input id="ca" placeholder="وصف المكان (علامة مميزة)">
+  <input id="cl" placeholder="إحداثيات أو رابط الموقع (مثال 28.91, 31.09)" inputmode="url"><p class="mu" style="margin-top:-4px">من تطبيق الخرائط: اختار المكان ← مشاركة ← نسخ الرابط ← الصقه هنا. ولو سبته فاضي، الزرار "وصّلني" هيدوّر بالاسم والقرية.</p>
+  <button class="btn" onclick="saveC()">حفظ</button>`}
+function gps(b){if(!navigator.geolocation)return toast('المتصفح لا يدعم الموقع');b.textContent='جاري التحديد...';
+  navigator.geolocation.getCurrentPosition(p=>{pos={lat:p.coords.latitude,lng:p.coords.longitude};b.textContent='✓ تم تسجيل الموقع'},()=>{b.textContent='📍 حاول تاني (فعّل الـ GPS والإذن)'},{enableHighAccuracy:true,timeout:15000})}
+function saveC(){const n=$('cn').value.trim();if(!n)return toast('اكتب اسم العميل');
+  S.customers.push({id:uid(),name:n,phone:$('cp').value.trim(),shop:$('cs').value.trim(),mz:$('cm').value,village:$('cv').value.trim(),note:$('ca').value.trim(),lat:parseLL($('cl').value)?.lat??null,lng:parseLL($('cl').value)?.lng??null,link:$('cl').value.trim()});
+  save();toast('تم الحفظ');go('cust')}
+function custView(){const c=C(v.cid),b=bal(c.id);
+  const ords=S.orders.filter(o=>o.cid===c.id).sort((a,b)=>b.t-a.t),pays=S.ledger.filter(l=>l.cid===c.id&&l.type==='PAID').sort((a,b)=>b.t-a.t).slice(0,5);
+  const dt=t=>new Date(t).toLocaleDateString('ar-EG');
+  return `<button class="btn t" onclick="go('cust')">→ رجوع</button><h2>${e(c.name)}</h2>
+  <div class="card"><div class="mu" style="text-align:center">الرصيد</div><div class="big">${balHTML(b)}</div></div>
+  <button class="btn" onclick="v={tab:'cust',order:c.id};cart={};render()">🛒 طلب جديد</button>
+  <button class="btn t" onclick="collect('${c.id}')">💵 تحصيل فلوس</button>
+  <div class="row"><button class="btn t" onclick="checkin('${c.id}')">✅ تسجيل زيارة</button>
+  <a class="btn t" target="_blank" rel="noopener" href="${e(navHref(c))}">🧭 وصّلني</a></div>
+  ${c.phone?`<a class="btn t" href="tel:${e(c.phone)}">📞 ${e(c.phone)}</a>`:''}
+  <button class="btn t" onclick="setLoc('${c.id}')">📍 ${c.lat!=null?'تعديل':'إضافة'} إحداثيات الموقع (للخريطة)</button>
+  <h2>الطلبات</h2>${ords.map(o=>`<div class="card"><b>${M(o.total)}</b> <span class="mu">• مدفوع ${M(o.paid)} • ${dt(o.t)}</span><div class="mu">${o.items.map(i=>e(i.name)+' ×'+i.qty).join('، ')}</div></div>`).join('')||'<p class="mu">لسه مفيش طلبات</p>'}
+  ${pays.length?'<h2>آخر تحصيلات</h2>'+pays.map(p=>`<div class="card">${M(p.amt)} <span class="mu">• ${dt(p.t)}</span></div>`).join(''):''}`}
+function collect(cid){const a=parseFloat(prompt('المبلغ المحصّل (جنيه):'));if(!(a>0))return;
+  S.ledger.push({id:uid(),cid,type:'PAID',amt:a,t:Date.now(),note:'تحصيل'});save();toast('تم تسجيل '+M(a));render()}
+function checkin(cid){S.visits.push({id:uid(),cid,t:Date.now()});save();toast('تم تسجيل الزيارة')}
+function navHref(c){if(c.lat!=null)return `https://www.google.com/maps/dir/?api=1&destination=${c.lat},${c.lng}`;
+  if(c.link&&/^https?:\/\//i.test(c.link))return c.link;
+  return 'https://www.google.com/maps/search/?api=1&query='+encodeURIComponent([c.shop,c.village,c.mz,'بني سويف مصر'].filter(Boolean).join(' '))}
+
+// ---------- ORDER ----------
+function plist(q){q=(q||'').trim();const l=S.products.filter(p=>!q||p.name.includes(q));
+  return l.length?l.map(p=>`<button class="item" onclick="addc('${p.id}')"><span><b>${e(p.name)}</b><br><span class="mu">${M(p.price)} / ${p.unit} • متاح ${p.stock}</span></span><span style="font-size:30px">＋</span></button>`).join(''):'<p class="mu">ضيف منتجات من تبويب المنتجات</p>'}
+function fp(q){$('plist').innerHTML=plist(q)}
+const tot=()=>Object.entries(cart).reduce((s,[i,q])=>s+q*P(i).price,0);
+function upCart(){$('cart').innerHTML=Object.entries(cart).map(([i,q])=>`<div class="row" style="margin-bottom:6px"><span style="flex:2">${e(P(i).name)}</span><button class="qb" onclick="chg('${i}',-1)">−</button><b style="text-align:center">${q}</b><button class="qb" onclick="chg('${i}',1)">＋</button></div>`).join('')||'<span class="mu">دوس على منتج لإضافته</span>';
+  $('tot').textContent='الإجمالي: '+M(tot())}
+function addc(i){cart[i]=(cart[i]||0)+1;upCart()}
+function chg(i,d){cart[i]+=d;if(cart[i]<=0)delete cart[i];upCart()}
+function orderView(){const c=C(v.order);setTimeout(upCart);
+  return `<button class="btn t" onclick="open_('${c.id}')">→ رجوع</button><h2>طلب - ${e(c.name)}</h2>
+  <div class="card"><div id="cart"></div><div class="row" style="margin-top:8px"><b id="tot" style="flex:1.2"></b><input id="paid" type="number" inputmode="decimal" placeholder="مدفوع دلوقتي" style="margin:0"></div></div>
+  <button class="btn" onclick="confirmO()">✔ تأكيد الطلب</button>
+  <input placeholder="🔍 ابحث عن منتج" oninput="fp(this.value)"><div id="plist">${plist('')}</div>`}
+function confirmO(){const cid=v.order,ids=Object.keys(cart);if(!ids.length)return toast('ضيف منتجات الأول');
+  for(const i of ids)if(P(i).stock<cart[i])return toast('المخزون مش كفاية: '+P(i).name);
+  const total=tot(),paid=parseFloat($('paid').value)||0;if(paid<0||paid>total)return toast('المبلغ المدفوع غير صحيح');
+  const oid=uid(),t=Date.now();
+  S.orders.push({id:oid,cid,t,total,paid,items:ids.map(i=>({pid:i,name:P(i).name,qty:cart[i],price:P(i).price}))});
+  ids.forEach(i=>P(i).stock-=cart[i]);
+  if(total-paid>0)S.ledger.push({id:uid(),cid,type:'OWES',amt:total-paid,t,oid,note:'آجل'});
+  if(paid>0)S.ledger.push({id:uid(),cid,type:'PAID',amt:paid,t,oid,note:'دفع وقت الطلب'});
+  save();cart={};toast('تم تأكيد الطلب');open_(cid)}
+
+// ---------- PRODUCTS ----------
+function prodView(){return `<details class="card"><summary style="min-height:44px;font-weight:700">➕ منتج جديد</summary>
+  <input id="pn" placeholder="اسم المنتج"><select id="pc">${CATS.map(c=>`<option>${c}</option>`).join('')}</select><select id="pu">${UNITS.map(c=>`<option>${c}</option>`).join('')}</select>
+  <div class="row"><input id="pp" type="number" inputmode="decimal" placeholder="السعر"><input id="ps" type="number" inputmode="decimal" placeholder="الكمية"></div>
+  <button class="btn" onclick="saveP()">حفظ</button></details>
+  ${CATS.map(c=>{const l=S.products.filter(p=>p.cat===c);return l.length?`<h2>${c}</h2>`+l.map(p=>`<div class="item" style="cursor:default"><span><b>${e(p.name)}</b><br><span class="mu">${M(p.price)} / ${p.unit}</span></span><span style="display:flex;gap:8px;align-items:center"><b style="font-size:24px" class="${p.stock<=0?'red':''}">${p.stock}</b><button class="qb" title="إضافة مخزون" onclick="restock('${p.id}')">＋</button><button class="qb" title="تعديل السعر" onclick="rePrice('${p.id}')">✎</button></span></div>`).join(''):''}).join('')||'<p class="mu">ضيف أول منتج</p>'}`}
+function saveP(){const n=$('pn').value.trim(),pr=parseFloat($('pp').value);if(!n||!(pr>=0))return toast('أكمل الاسم والسعر');
+  S.products.push({id:uid(),name:n,cat:$('pc').value,unit:$('pu').value,price:pr,stock:parseFloat($('ps').value)||0});save();toast('تم الحفظ');render()}
+function restock(i){const q=parseFloat(prompt('الكمية اللي وصلت:'));if(!(q>0))return;P(i).stock+=q;save();render()}
+function rePrice(i){const q=parseFloat(prompt('السعر الجديد:',P(i).price));if(!(q>=0))return;P(i).price=q;save();render()}
+
+// ---------- MAP ----------
+const hav=(a,b)=>{const r=x=>x*Math.PI/180,h=Math.sin(r(b.lat-a.lat)/2)**2+Math.cos(r(a.lat))*Math.cos(r(b.lat))*Math.sin(r(b.lng-a.lng)/2)**2;return 12742*Math.asin(Math.sqrt(h))};
+let rad=2,mk='';const MC=['#2e7d32','#1565c0','#ef6c00','#8e24aa','#c62828','#00838f','#6d4c41'],mcol=c=>c.mz&&MZ.includes(c.mz)?MC[MZ.indexOf(c.mz)]:'#888';
+function parseLL(s){s=(s||'').trim();const m=s.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/)||s.match(/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/)||s.match(/[?&](?:q|ll|query|destination)=(-?\d+\.\d+)(?:,|%2C)(-?\d+\.\d+)/i)||s.match(/^(-?\d+\.\d+)\s*[,،]\s*(-?\d+\.\d+)$/);return m?{lat:+m[1],lng:+m[2]}:null}
+function setLoc(id){const t=(prompt('الصق إحداثيات المكان أو رابط طويل من الخرائط (مثال: 28.9101, 31.0902)')||'').trim();if(!t)return;const c=C(id),ll=parseLL(t);if(!ll)return toast('مش لاقي إحداثيات في النص ده');c.lat=ll.lat;c.lng=ll.lng;if(/^https?:/i.test(t))c.link=t;save();toast('تم حفظ الموقع');render()}
+const wp=c=>c.lat!=null?c.lat+','+c.lng:[c.shop||c.name,c.village,c.mz,'بني سويف'].filter(Boolean).join(' ');
+function routeHref(l){l=l.slice(0,10);const w=l.slice(0,-1).map(wp).join('|');return 'https://www.google.com/maps/dir/?api=1&travelmode=driving&destination='+encodeURIComponent(wp(l[l.length-1]))+(w?'&waypoints='+encodeURIComponent(w):'')}
+function plot(l){
+ if(!l.length)return '<div class="card mu">لسه مفيش عملاء ليهم إحداثيات. افتح عميل واضغط "إضافة إحداثيات الموقع".</div>';
+ const W=340,H=300,p=28,la=l.map(c=>c.lat),ln=l.map(c=>c.lng),a=Math.min(...la),b=Math.max(...la),x0=Math.min(...ln),x1=Math.max(...ln),k=Math.cos((a+b)/2*Math.PI/180),dx=(x1-x0)*k,dy=b-a,one=dx<1e-7&&dy<1e-7,sc=one?0:Math.min(dx>1e-7?(W-2*p)/dx:1e9,dy>1e-7?(H-2*p)/dy:1e9),ox=(W-dx*sc)/2,oy=(H-dy*sc)/2;
+ const pt=c=>one?[W/2,H/2]:[ox+(c.lng-x0)*k*sc,oy+(b-c.lat)*sc];
+ return `<div class="card"><svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;background:var(--bg);border-radius:10px"><text x="${W-6}" y="16" font-size="12" fill="var(--mu)" text-anchor="end">⬆ شمال</text>${l.map(c=>{const[x,y]=pt(c);return `<g onclick="open_('${c.id}')" style="cursor:pointer"><circle cx="${x}" cy="${y}" r="10" fill="${mcol(c)}" stroke="var(--card)" stroke-width="2"/><text x="${x}" y="${y+24}" font-size="12" text-anchor="middle" fill="var(--tx)">${e(c.name.split(' ')[0])}</text></g>`}).join('')}</svg><div class="mu" style="line-height:2">${[...new Set(l.map(c=>c.mz||'بدون مركز'))].map(m=>`<span style="white-space:nowrap"><span style="color:${MZ.includes(m)?MC[MZ.indexOf(m)]:'#888'}">●</span> ${e(m)}</span>`).join(' &nbsp; ')}<br>الرسم تقريبي من غير خلفية خرائط، دوس على أي عميل يفتح صفحته</div></div>`}
+function near(l){const left=[...l],out=[];while(left.length){const s=left.shift(),g=[s];for(let i=left.length-1;i>=0;i--)if(hav(s,left[i])<=rad){g.push(left[i]);left.splice(i,1)}out.push(g)}return out.filter(x=>x.length>1)}
+function rowC(c){return `<div class="mu" style="cursor:pointer;padding:6px 0" onclick="open_('${c.id}')">• <b style="color:var(--tx)">${e(c.name)}</b>${c.village?' - '+e(c.village):''} ${balHTML(bal(c.id))}</div>`}
+function mapView(){
+ const all=mk?S.customers.filter(c=>c.mz===mk):S.customers,w=all.filter(c=>c.lat!=null),g={};
+ all.forEach(c=>{const k=c.mz||'بدون مركز';(g[k]=g[k]||[]).push(c)});
+ const cl=near(w);
+ return `<h2>العملاء على الخريطة</h2><select onchange="mk=this.value;render()"><option value="">كل المراكز</option>${MZ.map(m=>`<option${m===mk?' selected':''}>${m}</option>`).join('')}</select>${plot(w)}${all.length>w.length?`<p class="mu">${all.length-w.length} عميل من غير إحداثيات مش ظاهرين في الرسم</p>`:''}
+ <h2>عملاء جمب بعض</h2><select onchange="rad=+this.value;render()">${[1,2,5,10].map(r=>`<option value="${r}"${r===rad?' selected':''}>في حدود ${r} كم</option>`).join('')}</select>
+ ${cl.map(x=>`<div class="card"><b>${x.length} عملاء قريبين</b>${x.map(rowC).join('')}<a class="btn t" target="_blank" rel="noopener" style="margin:8px 0 0" href="${e(routeHref(x))}">🧭 مسار لكلهم (أول 10)</a></div>`).join('')||'<p class="mu">مفيش عملاء قريبين في النطاق ده، أو لسه مضفتش إحداثيات.</p>'}
+ <h2>حسب المركز</h2>${Object.entries(g).sort((a,b)=>b[1].length-a[1].length).map(([k,x])=>`<div class="card"><b>${e(k)}</b> <span class="mu">(${x.length})</span>${x.map(rowC).join('')}<a class="btn t" target="_blank" rel="noopener" style="margin:8px 0 0" href="${e(routeHref(x))}">🧭 مسار لعملاء ${e(k)} (أول 10)</a></div>`).join('')||'<p class="mu">ضيف عملاء الأول.</p>'}`}
+
+render();
+</script>
+</body>
+</html>
