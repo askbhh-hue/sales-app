@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#2e7d32">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="المندوب">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<title>مندوب المبيعات - بني سويف</title>
+<style>
+:root{--bg:#f6f8f5;--card:#fff;--tx:#17211a;--mu:#5d6b61;--pr:#2e7d32;--prt:#fff;--bd:#d9e1d9;--red:#c62828;--grn:#2e7d32;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#101611;--card:#1a231c;--tx:#e8efe9;--mu:#9aa89d;--pr:#66bb6a;--prt:#0b140c;--bd:#2c3a2e;--red:#ef7a7a;--grn:#81c784}}
+:root[data-theme="dark"]{--bg:#101611;--card:#1a231c;--tx:#e8efe9;--mu:#9aa89d;--pr:#66bb6a;--prt:#0b140c;--bd:#2c3a2e;--red:#ef7a7a;--grn:#81c784}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font:18px/1.5 system-ui,"Segoe UI",Tahoma,Arial,sans-serif;padding-bottom:96px}
+main{max-width:640px;margin:0 auto;padding:14px}
+h2{margin:6px 0 12px;font-size:22px}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:14px;padding:14px;margin-bottom:10px}
+.row{display:flex;gap:10px;align-items:center}.row>*{flex:1}
+.btn{display:block;width:100%;min-height:60px;border:0;border-radius:14px;background:var(--pr);color:var(--prt);font-family:inherit;font-size:18px;font-weight:600;margin-bottom:10px;cursor:pointer;text-align:center;text-decoration:none;padding:14px;line-height:1.3}
+.btn.t{background:var(--card);color:var(--tx);border:2px solid var(--pr)}
+.btn.sm{min-height:46px;font-size:15px;margin:0;padding:8px}
+.btn.dg{border-color:var(--red);color:var(--red)}
+.btn:disabled,.btn.off{opacity:.45;pointer-events:none}
+input,select,textarea{width:100%;min-height:54px;font:inherit;padding:10px 14px;border:1px solid var(--bd);border-radius:12px;background:var(--card);color:var(--tx);margin-bottom:10px}
+.stat{display:flex;justify-content:space-between;align-items:center;font-size:20px}.stat b{font-size:28px}
+.mu{color:var(--mu);font-size:15px}.red{color:var(--red)}.grn{color:var(--grn)}
+.item{display:flex;justify-content:space-between;align-items:center;gap:10px;width:100%;text-align:right;font:inherit;color:inherit;background:var(--card);border:1px solid var(--bd);border-radius:14px;padding:14px;margin-bottom:8px;min-height:64px;cursor:pointer}
+.big{font-size:40px;font-weight:700;text-align:center}
+.qb{flex:none!important;width:46px;height:46px;border-radius:50%;border:2px solid var(--pr);background:none;color:var(--tx);font-size:24px;cursor:pointer}
+nav{position:fixed;bottom:0;left:0;right:0;display:flex;background:var(--card);border-top:1px solid var(--bd);padding-bottom:env(safe-area-inset-bottom,0px)}
+nav button{flex:1;min-height:72px;border:0;background:none;color:var(--mu);font-family:inherit;font-size:15px;font-weight:600;cursor:pointer}
+nav button.on{color:var(--pr)}nav i{display:block;font-style:normal;font-size:26px}
+#toast{position:fixed;bottom:110px;left:50%;transform:translateX(-50%);background:#222;color:#fff;padding:12px 20px;border-radius:12px;display:none;z-index:9}
+pre{white-space:pre-wrap;font:inherit;margin:0}
+@media print{nav,.btn,#toast{display:none!important}body{padding:0}}
+</style>
+</head>
+<body>
+<main id="main"></main>
+<nav><button id="n-today" onclick="go('today')"><i>📊</i>اليوم</button><button id="n-cust" onclick="go('cust')"><i>👥</i>العملاء</button><button id="n-cov" onclick="go('cov')"><i>📍</i>الزيارات</button><button id="n-prod" onclick="go('prod')"><i>📦</i>المنتجات</button><button id="n-map" onclick="go('map')"><i>🗺️</i>الخريطة</button></nav>
+<div id="toast"></div>
+<script>
+const K='fs_v1',CATS=['أسمدة','مبيدات','تقاوي','منظمات نمو','أخرى'],UNITS=['شيكارة','زجاجة','لتر','كيلو','علبة'],MZ=['بني سويف','ناصر','إهناسيا','ببا','الفشن','سمسطا','الواسطى'];
+let S=null;try{S=JSON.parse(localStorage.getItem(K))}catch(_){}
+function fix(){S=S||{};['products','customers','orders','ledger','visits'].forEach(k=>S[k]=S[k]||[]);S.pin=S.pin||'';S.lb=S.lb||0;S.pv=S.pv||[];S.places=S.places||[];S.cyc=S.cyc||14;S.hide=S.hide||[]}
+function migrate(){if(S.mig)return;S.orders.forEach(o=>{if(o.cx||!(o.paid>0))return;const l=S.ledger.find(x=>x.oid===o.id&&x.type==='OWES');
+  if(l){if(Math.abs(l.amt-(o.total-o.paid))<0.01)l.amt=o.total}else S.ledger.push({id:uid(),cid:o.cid,type:'OWES',amt:o.total,t:o.t,oid:o.id,note:'طلب'})});S.mig=1;save()}
+fix();
+let v={tab:'today'},cart={},rp='w',unl=!S.pin,cq='';
+const save=()=>{try{localStorage.setItem(K,JSON.stringify(S))}catch(_){toast('تعذر الحفظ على المتصفح')}};
+const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+const e=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const M=n=>(Math.round(n*100)/100).toLocaleString('en-US')+' ج';
+const num=s=>parseFloat(String(s??'').replace(/[٠-٩]/g,d=>'٠١٢٣٤٥٦٧٨٩'.indexOf(d)).replace('٫','.').replace(',','.'));
+const $=i=>document.getElementById(i);
+const P=i=>S.products.find(p=>p.id===i),C=i=>S.customers.find(c=>c.id===i);
+const bal=c=>S.ledger.filter(l=>l.cid===c).reduce((s,l)=>s+(l.type==='OWES'?l.amt:-l.amt),0);
+const day0=()=>{const d=new Date();d.setHours(0,0,0,0);return d.getTime()};
+const dt=t=>new Date(t).toLocaleDateString('en-GB');
+const r2=n=>Math.round(n*100)/100;
+const isLow=p=>p.min>0?p.stock<=p.min:p.stock<=0;
+function waNum(p){let d=String(p||'').replace(/[٠-٩]/g,x=>'٠١٢٣٤٥٦٧٨٩'.indexOf(x)).replace(/\D/g,'');if(d.startsWith('00'))d=d.slice(2);else if(d.startsWith('0'))d='20'+d.slice(1);return d}
+const wa=(p,t)=>'https://wa.me/'+waNum(p)+'?text='+encodeURIComponent(t);
+function toast(m){const t=$('toast');t.textContent=m;t.style.display='block';setTimeout(()=>t.style.display='none',2200)}
+function go(t){v={tab:t};cart={};cq='';render()}
+function open_(c){v={tab:'cust',cid:c};render()}
+function balHTML(b){return b>0?`<span class="red">عليه ${M(b)}</span>`:b<0?`<span class="grn">ليه ${M(-b)}</span>`:'<span class="mu">صفر</span>'}
+const back=(f,l)=>`<button class="btn t" onclick="${f}">→ ${l||'رجوع'}</button>`;
+
+// ---------- LOCK ----------
+function hp(s){let h=5381;for(const c of String(s))h=(h*33+c.charCodeAt(0))>>>0;return String(h)}
+function lockView(){return `<h2>🔒 مندوب المبيعات</h2><input id="pin" type="password" inputmode="numeric" placeholder="الرقم السري" onkeydown="if(event.key==='Enter')unlock()"><button class="btn" onclick="unlock()">دخول</button>`}
+function unlock(){if(hp($('pin').value)===S.pin){unl=true;render()}else toast('الرقم غلط')}
+function setPin(){const p=prompt('اكتب الرقم السري الجديد:');if(!p)return;S.pin=hp(p);save();unl=true;toast('تم تفعيل القفل');render()}
+function rmPin(){S.pin='';save();toast('تم إلغاء القفل');render()}
+
+function render(){
+  ['today','cust','cov','prod','map'].forEach(t=>$('n-'+t).classList.toggle('on',v.tab===t));
+  let h;
+  if(!unl)h=lockView();
+  else if(v.imp)h=impView();
+  else if(v.bulk)h=bulkView();
+  else if(v.pg==='debts')h=debtsView();
+  else if(v.pg==='rep')h=repView();
+  else if(v.pg==='set')h=setView();
+  else if(v.stmt)h=stmtView();
+  else if(v.inv)h=invView();
+  else if(v.cedit||v.addc)h=custForm(v.cedit?C(v.cedit):null);
+  else if(v.pf)h=prodForm(P(v.pf));
+  else if(v.cid)h=custView();
+  else if(v.order)h=orderView();
+  else h=v.tab==='cust'?custList():v.tab==='cov'?covView():v.tab==='prod'?prodView():v.tab==='map'?mapView():todayView();
+  $('main').innerHTML=h;window.scrollTo(0,0);
+}
+
+// ---------- TODAY / SETTINGS / BACKUP ----------
+function summary(){const s=day0(),e2=s+864e5,inr=t=>t>=s&&t<e2;
+  return{v:S.visits.filter(x=>inr(x.t)).length,o:S.orders.filter(x=>!x.cx&&inr(x.t)).length,c:S.ledger.filter(x=>x.type==='PAID'&&inr(x.t)).reduce((a,x)=>a+x.amt,0)}}
+function todayView(){const d=summary(),owed=S.customers.reduce((s,c)=>s+Math.max(bal(c.id),0),0),low=S.products.filter(isLow).length,need=groups().filter(x=>x.cs.length&&x.st>=2).length,old=(S.customers.length+S.orders.length)>0&&Date.now()-S.lb>6048e5;
+  return `<h2>ملخص اليوم</h2>
+  ${old?`<div class="card" style="border-color:var(--red)">⚠ مفيش نسخة احتياطية من أكتر من أسبوع<button class="btn" style="margin:10px 0 0" onclick="dlBackup()">💾 نزّل نسخة احتياطية دلوقتي</button></div>`:''}
+  <div class="card stat">الزيارات<b>${d.v}</b></div>
+  <div class="card stat">الطلبات<b>${d.o}</b></div>
+  <div class="card stat">التحصيلات<b>${M(d.c)}</b></div>
+  <button class="btn t" onclick="v={tab:'today',pg:'debts'};render()">💰 المديونيات (${M(owed)})</button>
+  <button class="btn t" onclick="v={tab:'today',pg:'rep'};render()">📈 التقارير</button>
+  ${need?`<button class="btn t" onclick="go('cov')">📍 ${need} قرية محتاجة زيارة</button>`:''}
+  ${low?`<button class="btn t" onclick="go('prod')">⚠ ${low} منتج قرب يخلص</button>`:''}
+  <a class="btn t" target="_blank" rel="noopener" href="https://wa.me/?text=${encodeURIComponent(`تقرير اليوم\nالزيارات: ${d.v}\nالطلبات: ${d.o}\nالتحصيلات: ${d.c} جنيه`)}">📤 ابعت تقرير اليوم واتساب</a>
+  <button class="btn t" onclick="v={tab:'today',pg:'set'};render()">⚙️ الإعدادات والنسخ الاحتياطي</button>`}
+function setView(){return `${back("go('today')")}<h2>النسخ الاحتياطي</h2>
+  <p class="mu">آخر نسخة: ${S.lb?dt(S.lb):'لسه مفيش'}</p>
+  <button class="btn" onclick="dlBackup()">💾 تنزيل نسخة احتياطية (ملف)</button>
+  <label class="btn t" style="cursor:pointer">📂 استرجاع من ملف<input type="file" accept=".json,application/json" style="display:none" onchange="restoreFile(this.files[0])"></label>
+  <button class="btn t" onclick="backup()">📋 نسخ البيانات كنص</button>
+  <button class="btn t" onclick="restore()">📥 استرجاع من نص</button>
+  <h2>قفل التطبيق</h2>
+  <p class="mu">${S.pin?'القفل شغال.':'القفل مقفول.'} الرقم السري بيمنع أي حد يفتح الموقع على موبايلك، لكنه مش تشفير للبيانات.</p>
+  <button class="btn t" onclick="setPin()">${S.pin?'🔑 تغيير الرقم السري':'🔒 تفعيل رقم سري'}</button>
+  ${S.pin?'<button class="btn t" onclick="rmPin()">🔓 إلغاء القفل</button>':''}
+  <h2>التثبيت كتطبيق</h2><p class="mu">من قايمة المتصفح اختار Add to Home Screen.</p>`}
+function dlBackup(){try{const b=new Blob([JSON.stringify(S)],{type:'application/json'}),a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='sales-backup-'+new Date().toISOString().slice(0,10)+'.json';document.body.appendChild(a);a.click();a.remove();S.lb=Date.now();save();toast('تم تنزيل النسخة');render()}catch(_){backup()}}
+async function backup(){try{await navigator.clipboard.writeText(JSON.stringify(S));S.lb=Date.now();save();toast('تم النسخ، الصقه في ملاحظات أو واتساب')}catch(_){prompt('انسخ النص ده واحفظه:',JSON.stringify(S))}}
+function applyBackup(t){try{const d=JSON.parse(t);if(!d.customers||!d.products)throw 0;if(!confirm('هتستبدل كل البيانات الحالية بالنسخة دي؟'))return;S=d;fix();unl=true;save();toast('تم الاسترجاع');go('today')}catch(_){toast('النص غير صالح')}}
+function restore(){const t=prompt('الصق النسخة الاحتياطية:');if(t)applyBackup(t)}
+function restoreFile(f){if(!f)return;const r=new FileReader();r.onload=()=>applyBackup(String(r.result));r.readAsText(f)}
+
+// ---------- DEBTS / REPORTS ----------
+function debtsView(){const l=S.customers.map(c=>({c,b:bal(c.id)})).filter(x=>x.b>0).sort((a,b)=>b.b-a.b),tot=l.reduce((s,x)=>s+x.b,0);
+  return `${back("go('today')")}<h2>المديونيات</h2><div class="card stat">إجمالي اللي ليك عند العملاء<b class="red">${M(tot)}</b></div>
+  ${l.map(({c,b})=>`<div class="card"><div class="stat" style="font-size:18px"><span><b>${e(c.name)}</b><br><span class="mu">${e([c.village,c.mz].filter(Boolean).join(' - '))}</span></span><b class="red" style="font-size:22px">${M(b)}</b></div><div class="row" style="margin-top:10px"><button class="btn t sm" onclick="open_('${c.id}')">فتح الحساب</button><a class="btn t sm" target="_blank" rel="noopener" href="${e(wa(c.phone,`السلام عليكم يا ${c.name}، بخصوص حسابك: المتبقي ${r2(b)} جنيه. ياريت تسوّيه وقت ما تقدر. شكرًا لتعاملك معانا 🌾`))}">📲 تذكير واتساب</a></div></div>`).join('')||'<p class="mu">مفيش مديونيات 🎉</p>'}`}
+function repView(){const now=Date.now(),st={d:day0(),w:now-6048e5,m:now-2592e6,a:0}[rp];
+  const os=S.orders.filter(o=>!o.cx&&o.t>=st),col=S.ledger.filter(l=>l.type==='PAID'&&l.t>=st).reduce((a,l)=>a+l.amt,0),sales=os.reduce((a,o)=>a+o.total,0);
+  const pr={},cu={};os.forEach(o=>{cu[o.cid]=(cu[o.cid]||0)+o.total;o.items.forEach(i=>{const x=pr[i.name]=pr[i.name]||{q:0,r:0};x.q+=i.qty;x.r+=i.qty*i.price})});
+  const top=(m,f)=>Object.entries(m).sort((a,b)=>f(b[1])-f(a[1])).slice(0,5);
+  return `${back("go('today')")}<h2>التقارير</h2>
+  <select onchange="rp=this.value;render()">${[['d','النهارده'],['w','آخر 7 أيام'],['m','آخر 30 يوم'],['a','الكل']].map(([k,l])=>`<option value="${k}"${k===rp?' selected':''}>${l}</option>`).join('')}</select>
+  <div class="card stat">المبيعات<b>${M(sales)}</b></div><div class="card stat">التحصيلات<b>${M(col)}</b></div><div class="card stat">عدد الطلبات<b>${os.length}</b></div>
+  <h2>أكتر المنتجات مبيعًا</h2>${top(pr,x=>x.r).map(([n,x])=>`<div class="card">${e(n)} <span class="mu">• ${r2(x.q)} وحدة • ${M(x.r)}</span></div>`).join('')||'<p class="mu">مفيش بيانات</p>'}
+  <h2>أكتر العملاء شراءً</h2>${top(cu,x=>x).map(([id,x])=>`<div class="card" style="cursor:pointer" onclick="open_('${id}')">${e((C(id)||{}).name)} <span class="mu">• ${M(x)}</span></div>`).join('')||'<p class="mu">مفيش بيانات</p>'}`}
+
+// ---------- CUSTOMERS ----------
+function custCards(q){q=(q||'').trim();
+  const l=S.customers.filter(c=>!q||[c.name,c.village,c.shop,c.crop,c.mz].join(' ').includes(q));
+  return l.length?l.map(c=>`<button class="item" onclick="open_('${c.id}')"><span><b>${e(c.name)}</b><br><span class="mu">${e([c.shop,c.village,c.mz,c.crop].filter(Boolean).join(' - '))}</span></span><b>${balHTML(bal(c.id))}</b></button>`).join(''):'<p class="mu">مفيش عملاء</p>'}
+function fc(q){$('list').innerHTML=custCards(q)}
+function custList(){return `<button class="btn" onclick="v={tab:'cust',addc:1};render()">➕ عميل جديد</button><button class="btn t" onclick="v={tab:'cust',imp:1};render()">📥 استيراد من جهات الاتصال</button><input placeholder="🔍 ابحث بالاسم أو القرية أو المحصول" value="${e(cq)}" oninput="fc(this.value)"><div id="list">${custCards(cq)}</div>`}
+function custForm(c){const x=c||{},f=(id,ph,val,t)=>`<input id="${id}" ${t?`type="${t}" inputmode="decimal" `:''}placeholder="${ph}" value="${e(val)}">`;
+  return `${back(c?`open_('${c.id}')`:"go('cust')")}<h2>${c?'تعديل عميل':'عميل جديد'}</h2>
+  ${f('cn','اسم العميل',x.name||'')}${f('cp','رقم التليفون',x.phone||'')}${f('cs','اسم المحل / المزرعة',x.shop||'')}
+  <select id="cm"><option value="">المركز</option>${MZ.map(m=>`<option${m===x.mz?' selected':''}>${m}</option>`).join('')}</select>
+  ${f('cv','القرية',x.village||'')}${f('cc','المحصول (قمح، قطن، خضار...)',x.crop||'')}${f('cd','خصم ثابت للعميل % (اختياري)',x.disc||'','number')}${f('ca','وصف المكان (علامة مميزة)',x.note||'')}
+  ${f('cl','إحداثيات أو رابط الموقع (مثال 28.91, 31.09)',x.link||(x.lat!=null?x.lat+', '+x.lng:''))}
+  <p class="mu" style="margin-top:-4px">لو سبت الموقع فاضي، زرار "وصّلني" هيدوّر بالاسم والقرية.</p>
+  <button class="btn" onclick="saveC()">حفظ</button>`}
+function saveC(){const n=$('cn').value.trim();if(!n)return toast('اكتب اسم العميل');const l=$('cl').value.trim(),ll=parseLL(l);
+  const d={name:n,phone:$('cp').value.trim(),shop:$('cs').value.trim(),mz:$('cm').value,village:$('cv').value.trim(),crop:$('cc').value.trim(),disc:Math.min(Math.max(num($('cd').value)||0,0),100),note:$('ca').value.trim(),lat:ll?ll.lat:null,lng:ll?ll.lng:null,link:/^https?:/i.test(l)?l:''};
+  if(v.cedit){const id=v.cedit;Object.assign(C(id),d);save();toast('تم التعديل');return open_(id)}
+  S.customers.push({id:uid(),...d});save();toast('تم الحفظ');go('cust')}
+function custView(){const c=C(v.cid);if(!c){v={tab:'cust'};return custList()}const b=bal(c.id);
+  const ords=S.orders.filter(o=>o.cid===c.id).sort((a,b)=>b.t-a.t),pays=S.ledger.filter(l=>l.cid===c.id&&l.type==='PAID'&&!l.oid).sort((a,b)=>b.t-a.t).slice(0,8);
+  return `${back("go('cust')")}<h2>${e(c.name)}</h2>
+  <div class="mu" style="margin:-8px 0 10px">${e([c.shop,c.village,c.mz].filter(Boolean).join(' - '))}${c.crop?' • 🌱 '+e(c.crop):''}${c.disc?' • خصم '+c.disc+'%':''}</div>
+  <div class="card"><div class="mu" style="text-align:center">الرصيد</div><div class="big">${balHTML(b)}</div></div>
+  <button class="btn" onclick="v={tab:'cust',order:'${c.id}'};cart={};render()">🛒 طلب جديد</button>
+  <button class="btn t" onclick="collect('${c.id}')">💵 تحصيل فلوس</button>
+  <div class="row"><button class="btn t" onclick="checkin('${c.id}')">✅ تسجيل زيارة</button><a class="btn t" target="_blank" rel="noopener" href="${e(navHref(c))}">🧭 وصّلني</a></div>
+  ${c.phone?`<div class="row"><a class="btn t" href="tel:${e(c.phone)}">📞 اتصال</a><a class="btn t" target="_blank" rel="noopener" href="${e(wa(c.phone,''))}">💬 واتساب</a></div>`:''}
+  <button class="btn t" onclick="v={tab:'cust',stmt:'${c.id}'};render()">📄 كشف حساب</button>
+  <button class="btn t" onclick="setLoc('${c.id}')">📍 ${c.lat!=null?'تعديل':'إضافة'} إحداثيات الموقع (للخريطة)</button>
+  <div class="row"><button class="btn t" onclick="v={tab:'cust',cedit:'${c.id}'};render()">✏️ تعديل البيانات</button><button class="btn t dg" onclick="delCust('${c.id}')">🗑 حذف العميل</button></div>
+  <h2>الطلبات</h2>${ords.map(o=>`<div class="card"${o.cx?' style="opacity:.55"':''}><b${o.cx?' style="text-decoration:line-through"':''}>${M(o.total)}</b> <span class="mu">• مدفوع ${M(o.paid)} • ${dt(o.t)}${o.cx?' • ملغي':''}</span><div class="mu">${o.items.map(i=>e(i.name)+' ×'+i.qty).join('، ')}</div><div class="row" style="margin-top:8px"><button class="btn t sm" onclick="v={tab:'cust',inv:'${o.id}'};render()">🧾 فاتورة</button>${o.cx?'':`<button class="btn t sm dg" onclick="cancelO('${o.id}')">إلغاء الطلب</button>`}</div></div>`).join('')||'<p class="mu">لسه مفيش طلبات</p>'}
+  ${pays.length?'<h2>آخر تحصيلات</h2>'+pays.map(p=>`<div class="card stat" style="font-size:18px"><span>${M(p.amt)} <span class="mu">• ${dt(p.t)}</span></span><button class="qb" onclick="delPay('${p.id}')">✖</button></div>`).join(''):''}`}
+function collect(cid){const a=num(prompt('المبلغ المحصّل (جنيه):'));if(!(a>0))return;
+  S.ledger.push({id:uid(),cid,type:'PAID',amt:a,t:Date.now(),note:'تحصيل'});autoVisit(cid);save();toast('تم تسجيل '+M(a));render()}
+function delPay(id){if(!confirm('حذف التحصيل ده؟ الرصيد هيتعدّل'))return;S.ledger=S.ledger.filter(l=>l.id!==id);save();toast('تم الحذف');render()}
+function delCust(id){if(!confirm('حذف العميل وكل طلباته وحساباته نهائيًا؟'))return;
+  S.orders=S.orders.filter(o=>o.cid!==id);S.ledger=S.ledger.filter(l=>l.cid!==id);S.visits=S.visits.filter(x=>x.cid!==id);S.customers=S.customers.filter(c=>c.id!==id);save();toast('تم الحذف');go('cust')}
+function cancelO(oid){const o=S.orders.find(x=>x.id===oid);if(!o||o.cx||!confirm('تلغي الطلب ده؟ هيرجّع المخزون ويشيل الحساب المرتبط بيه'))return;
+  o.items.forEach(i=>{const p=P(i.pid);if(p)p.stock+=i.qty});S.ledger=S.ledger.filter(l=>l.oid!==oid);o.cx=true;save();toast('تم إلغاء الطلب');render()}
+function checkin(cid){S.visits.push({id:uid(),cid,t:Date.now()});save();toast('تم تسجيل الزيارة')}
+function navHref(c){if(c.lat!=null)return `https://www.google.com/maps/dir/?api=1&destination=${c.lat},${c.lng}`;
+  if(c.link&&/^https?:\/\//i.test(c.link))return c.link;
+  return 'https://www.google.com/maps/search/?api=1&query='+encodeURIComponent([c.shop,c.village,c.mz,'بني سويف مصر'].filter(Boolean).join(' '))}
+
+// ---------- STATEMENT / INVOICE ----------
+function stmtText(c){let r=0;const L=S.ledger.filter(l=>l.cid===c.id).sort((a,b)=>a.t-b.t).map(l=>{r+=l.type==='OWES'?l.amt:-l.amt;return `${dt(l.t)} | ${l.type==='OWES'?'عليك +':'دفعت −'}${r2(l.amt)} | الرصيد ${r2(r)}`});const b=bal(c.id);
+  return `كشف حساب: ${c.name}\n`+(L.join('\n')||'مفيش حركات')+`\n──────\n${b>0?'المتبقي عليك':b<0?'ليك عندنا':'الحساب صفر'}: ${r2(Math.abs(b))} جنيه`}
+function stmtView(){const c=C(v.stmt);if(!c){v={tab:'cust'};return custList()}let r=0;
+  const rows=S.ledger.filter(l=>l.cid===c.id).sort((a,b)=>a.t-b.t).map(l=>{r+=l.type==='OWES'?l.amt:-l.amt;return `<div class="card stat" style="font-size:16px"><span>${dt(l.t)}<br><span class="mu">${l.type==='OWES'?'عليه':'ليه'} ${M(l.amt)}${l.note?' • '+e(l.note):''}</span></span><b style="font-size:20px" class="${r>0?'red':'grn'}">${M(Math.abs(r))}</b></div>`}).reverse();
+  return `${back(`open_('${c.id}')`)}<h2>كشف حساب - ${e(c.name)}</h2><div class="card"><div class="big">${balHTML(bal(c.id))}</div></div>
+  <a class="btn" target="_blank" rel="noopener" href="${e(wa(c.phone,stmtText(c)))}">📤 ابعته واتساب</a><button class="btn t" onclick="window.print()">🖨 طباعة / حفظ PDF</button>
+  ${rows.join('')||'<p class="mu">مفيش حركات</p>'}`}
+function invText(o){const c=C(o.cid)||{name:''},b=bal(o.cid);
+  return `فاتورة\nالعميل: ${c.name}\nالتاريخ: ${dt(o.t)}\n──────\n`+o.items.map(i=>`• ${i.name}  ${i.qty} × ${i.price} = ${r2(i.qty*i.price)}`).join('\n')+(o.disc?`\nخصم: ${o.disc}`:'')+`\n──────\nالإجمالي: ${o.total} جنيه\nالمدفوع: ${o.paid} جنيه\nالمتبقي: ${r2(o.total-o.paid)} جنيه\nرصيد حسابك الحالي: ${b>0?'عليك '+r2(b):b<0?'ليك '+r2(-b):'صفر'} جنيه\nشكرًا لتعاملك معانا 🌾`}
+function invView(){const o=S.orders.find(x=>x.id===v.inv);if(!o){v={tab:'cust'};return custList()}const c=C(o.cid)||{};
+  return `${back(`open_('${o.cid}')`)}<h2>فاتورة</h2><div class="card"><pre>${e(invText(o))}</pre></div>
+  <a class="btn" target="_blank" rel="noopener" href="${e(wa(c.phone,invText(o)))}">📤 ابعتها واتساب</a><button class="btn t" onclick="window.print()">🖨 طباعة / حفظ PDF</button>`}
+
+// ---------- ORDER ----------
+const dprice=(c,p)=>r2(p.price*(1-((c&&c.disc)||0)/100));
+const sub=()=>Object.values(cart).reduce((s,l)=>s+l.q*l.p,0);
+const dsc=()=>{const x=$('dsc');return Math.max(x?num(x.value)||0:0,0)};
+function plist(q){q=(q||'').trim();const l=S.products.filter(p=>!q||p.name.includes(q));
+  return l.length?l.map(p=>`<button class="item" onclick="addc('${p.id}')"><span><b>${e(p.name)}</b>${isLow(p)?' ⚠':''}<br><span class="mu">${M(p.price)} / ${p.unit} • متاح ${p.stock}</span></span><span style="font-size:30px">＋</span></button>`).join(''):'<p class="mu">ضيف منتجات من تبويب المنتجات</p>'}
+function fp(q){$('plist').innerHTML=plist(q)}
+function upTot(){$('tot').textContent='الإجمالي: '+M(Math.max(sub()-dsc(),0))}
+function upCart(){$('cart').innerHTML=Object.entries(cart).map(([i,l])=>`<div style="margin-bottom:12px"><b>${e(P(i).name)}</b><div class="row" style="margin-top:4px"><button class="qb" onclick="chg('${i}',-1)">−</button><b style="text-align:center;flex:none;min-width:34px">${l.q}</b><button class="qb" onclick="chg('${i}',1)">＋</button><button class="btn t sm" onclick="setPr('${i}')">${M(l.p)} ✎</button></div></div>`).join('')||'<span class="mu">دوس على منتج لإضافته</span>';upTot()}
+function addc(i){if(!cart[i])cart[i]={q:0,p:dprice(C(v.order),P(i))};cart[i].q++;upCart()}
+function chg(i,d){cart[i].q+=d;if(cart[i].q<=0)delete cart[i];upCart()}
+function setPr(i){const x=num(prompt('سعر الوحدة:',cart[i].p));if(x>=0){cart[i].p=x;upCart()}}
+function orderView(){const c=C(v.order);setTimeout(upCart);
+  return `${back(`open_('${c.id}')`)}<h2>طلب - ${e(c.name)}</h2>${c.disc?`<p class="mu" style="margin-top:-8px">الأسعار بعد خصم ${c.disc}% للعميل. اضغط على السعر لتعديله.</p>`:''}
+  <div class="card"><div id="cart"></div><b id="tot" style="display:block;margin:6px 0 10px;font-size:22px"></b>
+  <div class="row"><input id="dsc" type="number" inputmode="decimal" placeholder="خصم (جنيه)" oninput="upTot()" style="margin:0"><input id="paid" type="number" inputmode="decimal" placeholder="مدفوع دلوقتي" style="margin:0"></div></div>
+  <button class="btn" onclick="confirmO()">✔ تأكيد الطلب</button>
+  <input placeholder="🔍 ابحث عن منتج" oninput="fp(this.value)"><div id="plist">${plist('')}</div>`}
+function confirmO(){const cid=v.order,ids=Object.keys(cart);if(!ids.length)return toast('ضيف منتجات الأول');
+  for(const i of ids)if(P(i).stock<cart[i].q)return toast('المخزون مش كفاية: '+P(i).name);
+  const s=sub(),d=dsc();if(d>s)return toast('الخصم أكبر من الإجمالي');
+  const total=r2(s-d),paid=num($('paid').value)||0;if(paid<0||paid>total)return toast('المبلغ المدفوع غير صحيح');
+  const oid=uid(),t=Date.now();
+  S.orders.push({id:oid,cid,t,total,paid,disc:d,items:ids.map(i=>({pid:i,name:P(i).name,qty:cart[i].q,price:cart[i].p}))});
+  ids.forEach(i=>P(i).stock-=cart[i].q);
+  if(total>0)S.ledger.push({id:uid(),cid,type:'OWES',amt:total,t,oid,note:'طلب'});
+  if(paid>0)S.ledger.push({id:uid(),cid,type:'PAID',amt:paid,t,oid,note:'دفع وقت الطلب'});
+  autoVisit(cid);save();cart={};toast('تم تأكيد الطلب');v={tab:'cust',inv:oid};render()}
+
+// ---------- PRODUCTS ----------
+function prodFields(p){return `<input id="pn" placeholder="اسم المنتج" value="${e(p.name||'')}"><select id="pc">${CATS.map(c=>`<option${c===p.cat?' selected':''}>${c}</option>`).join('')}</select><select id="pu">${UNITS.map(c=>`<option${c===p.unit?' selected':''}>${c}</option>`).join('')}</select>
+  <div class="row"><input id="pp" type="number" inputmode="decimal" placeholder="السعر" value="${p.price??''}"><input id="ps" type="number" inputmode="decimal" placeholder="الكمية" value="${p.stock??''}"></div>
+  <input id="pm" type="number" inputmode="decimal" placeholder="حد التنبيه: نبّهني لو الكمية وصلت لرقم..." value="${p.min||''}">`}
+function prodView(){const low=S.products.filter(isLow);
+  return `<details class="card"><summary style="min-height:44px;font-weight:700">➕ منتج جديد</summary>${prodFields({})}<button class="btn" onclick="saveP()">حفظ</button></details>
+  ${low.length?`<div class="card" style="border-color:var(--red)">⚠ قرب يخلص: ${e(low.map(p=>p.name).join('، '))}</div>`:''}
+  ${CATS.map(c=>{const l=S.products.filter(p=>p.cat===c);return l.length?`<h2>${c}</h2>`+l.map(p=>`<div class="item" style="cursor:default"><span><b>${e(p.name)}</b>${isLow(p)?' ⚠':''}<br><span class="mu">${M(p.price)} / ${p.unit}</span></span><span style="display:flex;gap:8px;align-items:center"><b style="font-size:24px" class="${isLow(p)?'red':''}">${p.stock}</b><button class="qb" onclick="restock('${p.id}')">＋</button><button class="qb" onclick="v={tab:'prod',pf:'${p.id}'};render()">✎</button></span></div>`).join(''):''}).join('')||'<p class="mu">ضيف أول منتج</p>'}`}
+function prodForm(p){return `${back("go('prod')")}<h2>تعديل منتج</h2>${prodFields(p)}<button class="btn" onclick="saveP()">حفظ</button><button class="btn t dg" onclick="delP('${p.id}')">🗑 حذف المنتج</button>`}
+function saveP(){const n=$('pn').value.trim(),pr=num($('pp').value);if(!n||!(pr>=0))return toast('أكمل الاسم والسعر');
+  const d={name:n,cat:$('pc').value,unit:$('pu').value,price:pr,stock:num($('ps').value)||0,min:num($('pm').value)||0};
+  if(v.pf){Object.assign(P(v.pf),d);save();toast('تم التعديل');return go('prod')}
+  S.products.push({id:uid(),...d});save();toast('تم الحفظ');render()}
+function delP(id){if(!confirm('حذف المنتج؟ الطلبات القديمة هتفضل زي ما هي'))return;S.products=S.products.filter(p=>p.id!==id);save();toast('تم الحذف');go('prod')}
+function restock(i){const q=num(prompt('الكمية اللي وصلت:'));if(!(q>0))return;P(i).stock+=q;save();render()}
+
+// ---------- COVERAGE ----------
+// قايمة أولية بقرى بني سويف (حوالي 60 قرية من أكتر من 200)، مجمّعة من مصادر إخبارية. ناقصة، وتقدر تضيف عليها أو تشيل منها.
+const GZ={'الواسطى':['الميمون','قمن العروس','أبو صير الملق','ميدوم','أنفسط','أطواب','الرقة الغربية','كوم إدريجة','الديابية','نزلة الجنيدي','بني غنيم','عزبة الراهب','زاوية المصلوب','ونا القس'],
+'ببا':['طرشوب','علي كيلاني','زاوية الناوية','طنسا','سدس','بني قاسم','صفط لاشين','القرامنة','غياضة الشرقية','البرانقة','طوة','كفر منصور','نزلة الشريف','بني عوض','هلية','قمبش','السلطاني','أبو دخان','بني عقبة','فزارة','نزلة الزاوية','الفقيرة','أم الجنازير','أبو شربان'],
+'ناصر':['بوش','بني خليفة','طنسا الملق','الرياض','بني عدي','الحرجة','الحمام','السبخاية'],
+'إهناسيا':['بهنموة','منهرو','منهرة','شاويش','معصرة نعسان','قلة'],
+'سمسطا':['بني حلة','معجون'],
+'الفشن':['صفط الخرسا','تلت','نجع الزموط','مهدي الأخرم','الشقر','الفنت'],
+'بني سويف':['زلطة','معارك','الحلابية']};
+const nk=s=>nrm(s).replace(/^ال/,'');
+let covList=[],cmk='';
+const gname=x=>x.vl||(x.mz==='بدون مركز'?'عملاء بدون مكان':'داخل '+x.mz);
+function autoVisit(cid){const d=day0();if(!S.visits.some(x=>x.cid===cid&&x.t>=d))S.visits.push({id:uid(),cid,t:Date.now(),auto:1})}
+function autoMz(){if(S.gz===1)return;const m={};Object.entries(GZ).forEach(([z,l])=>l.forEach(n=>{const k=nk(n);m[k]=m[k]===undefined?z:null}));
+  S.customers.forEach(c=>{if(!c.mz&&c.village){const z=m[nk(c.village)];if(z){c.mz=z;c.mzAuto=1}}});S.gz=1;save()}
+function groups(){const g={},lv={},hid=new Set(S.hide);
+  const add=(m,vl)=>{const k=m+'|'+nk(vl);return g[k]=g[k]||{mz:m,vl,cs:[],man:0,std:0,key:k}};
+  S.customers.forEach(c=>{const x=add(c.mz||'بدون مركز',c.village||'');x.cs.push(c)});
+  S.places.forEach(p=>{add(p.mz,p.vl).man=1});
+  Object.entries(GZ).forEach(([z,l])=>l.forEach(n=>{if(!hid.has(z+'|'+nk(n)))add(z,n).std=1}));
+  S.visits.forEach(x=>{lv[x.cid]=Math.max(lv[x.cid]||0,x.t)});S.orders.forEach(o=>{if(!o.cx)lv[o.cid]=Math.max(lv[o.cid]||0,o.t)});
+  return Object.values(g).map(x=>{x.last=Math.max(0,...x.cs.map(c=>lv[c.id]||0),...S.pv.filter(p=>p.mz===x.mz&&nk(p.vl)===nk(x.vl)).map(p=>p.t));
+    x.days=x.last?Math.floor((Date.now()-x.last)/864e5):null;
+    x.st=!x.last?3:x.days>S.cyc?2:x.days>S.cyc*.6?1:0;x.vis=x.cs.filter(c=>lv[c.id]).length;return x})}
+const stTxt=x=>x.st===3?['لم تُزر خالص','var(--red)']:x.st===2?['متأخرة '+(x.days-S.cyc)+' يوم','var(--red)']:x.st===1?['قربت','#ef6c00']:['تمام','var(--grn)'];
+function vhref(x){return x.cs.length?routeHref(x.cs):'https://www.google.com/maps/search/?api=1&query='+encodeURIComponent([x.vl,x.mz==='بدون مركز'?'':x.mz,'بني سويف مصر'].filter(Boolean).join(' '))}
+function markV(i,ago){const x=covList[i];S.pv.push({id:uid(),mz:x.mz,vl:x.vl,t:Date.now()-(ago||0)*864e5});save();toast('تم تسجيل زيارة '+gname(x));render()}
+function agoV(i){const n=num(prompt('زرتها من كام يوم؟ (اكتب 0 لو النهارده)'));if(n>=0)markV(i,n)}
+function showV(i){const x=covList[i];cq=x.vl||(x.mz==='بدون مركز'?'':x.mz);v={tab:'cust'};render()}
+function delV(i){const x=covList[i];if(!confirm('تشيل '+gname(x)+' من المتابعة؟'))return;if(x.man)S.places=S.places.filter(p=>!(p.mz===x.mz&&nk(p.vl)===nk(x.vl)));if(x.std)S.hide.push(x.key);save();render()}
+function setCyc(){const n=num(prompt('كل كام يوم المفروض تزور كل قرية؟',S.cyc));if(n>0){S.cyc=Math.round(n);save();render()}}
+function bulkView(){return `${back("v={tab:'cov'};render()")}<h2>إضافة قرى للمتابعة</h2><select id="bm">${MZ.map(m=>`<option${m===cmk?' selected':''}>${m}</option>`).join('')}</select><textarea id="bt" rows="7" placeholder="اكتب أسماء القرى، كل اسم في سطر أو بينهم فاصلة"></textarea><button class="btn" onclick="saveBulk()">إضافة</button>`}
+function saveBulk(){const m=$('bm').value,l=$('bt').value.split(/[\n,،]+/).map(x=>x.trim()).filter(Boolean);if(!l.length)return toast('اكتب اسم قرية على الأقل');let n=0;
+  l.forEach(vl=>{if(!S.places.some(p=>p.mz===m&&nk(p.vl)===nk(vl))){S.places.push({id:uid(),mz:m,vl});n++}});save();toast('اتضافت '+n+' قرية');v={tab:'cov'};render()}
+function covCard(x){const i=covList.indexOf(x),[tx,col]=stTxt(x);
+  return `<div class="card"><div class="stat" style="font-size:18px"><span><b>${e(gname(x))}</b> <span class="mu">• ${x.cs.length?x.cs.length+' عميل':'من غير عملاء'}</span><br><span class="mu">${x.last?'آخر زيارة '+dt(x.last)+' • '+(x.days===0?'النهارده':'من '+x.days+' يوم'):'مفيش زيارة مسجلة'}${x.cs.length?' • اتزار '+x.vis+' من '+x.cs.length:''}</span></span><b style="font-size:16px;color:${col}">${tx}</b></div>
+  <div class="row" style="margin-top:10px"><button class="btn t sm" onclick="markV(${i})">✅ زرتها النهارده</button><button class="btn t sm" onclick="agoV(${i})">📅 قبل كام يوم</button></div>
+  <div class="row" style="margin-top:8px"><a class="btn t sm" target="_blank" rel="noopener" href="${e(vhref(x))}">🧭 مسار</a>${x.cs.length?`<button class="btn t sm" onclick="showV(${i})">👥 العملاء</button>`:`<button class="btn t sm" onclick="delV(${i})">🗑 شيلها</button>`}</div></div>`}
+function covView(){covList=groups();const all=[...MZ,'بدون مركز'],L=cmk?covList.filter(x=>x.mz===cmk):covList,own=L.filter(x=>x.cs.length),n=a=>own.filter(x=>a.includes(x.st)).length;
+  const ord=(a,b)=>b.st-a.st||(b.days||0)-(a.days||0)||b.cs.length-a.cs.length;
+  const sc={};own.filter(x=>x.st>=2&&x.mz!=='بدون مركز').forEach(x=>{sc[x.mz]=(sc[x.mz]||0)+(x.st===3?3:2)});
+  const bm=cmk||Object.keys(sc).sort((a,b)=>sc[b]-sc[a])[0],tour=bm?own.filter(x=>x.mz===bm&&x.st>=2).sort(ord).slice(0,4):[];
+  const fresh=L.filter(x=>!x.cs.length&&x.st>=2).sort(ord).slice(0,4),nol=S.customers.filter(c=>c.lat==null);
+  return `<h2>متابعة الزيارات</h2>
+  <select onchange="cmk=this.value;render()"><option value="">كل المراكز</option>${all.map(m=>`<option${m===cmk?' selected':''}>${m}</option>`).join('')}</select>
+  <div class="row"><div class="card" style="text-align:center;padding:10px"><div class="red" style="font-size:28px;font-weight:700">${n([3])}</div><div class="mu">لم تُزر خالص</div></div><div class="card" style="text-align:center;padding:10px"><div class="red" style="font-size:28px;font-weight:700">${n([2])}</div><div class="mu">متأخرة</div></div><div class="card" style="text-align:center;padding:10px"><div class="grn" style="font-size:28px;font-weight:700">${n([0,1])}</div><div class="mu">تمام</div></div></div>
+  <p class="mu" style="margin-top:-2px">الأرقام دي لقرى عملائك. القرية بتتحسب متزارة لو زرت أي عميل فيها أو عملت له طلب أو تحصيل. المدة المطلوبة: كل ${S.cyc} يوم.</p>
+  ${tour.length?`<h2>جولة النهارده المقترحة${bm?': '+bm:''}</h2><p class="mu" style="margin-top:-8px">أكتر قرى عملاء محتاجة زيارة في المركز ده</p>`+tour.map(covCard).join(''):(own.length?'<p class="mu">كل قرى عملائك تمام 🎉</p>':'<p class="mu">ضيف عملاء الأول.</p>')}
+  ${fresh.length?'<h2>قرى جديدة تزورها</h2><p class="mu" style="margin-top:-8px">لسه مفيهاش عملاء ومزرتهاش</p>'+fresh.map(covCard).join(''):''}
+  ${all.filter(m=>L.some(x=>x.mz===m)).map(m=>{const gl=L.filter(x=>x.mz===m).sort((a,b)=>(b.cs.length>0)-(a.cs.length>0)||ord(a,b)),o=gl.filter(x=>x.cs.length);return `<details class="card"${cmk?' open':''}><summary style="min-height:44px;font-weight:700">${m} <span class="mu">• ${gl.length} قرية • 🔴 ${o.filter(x=>x.st===3).length} • 🟠 ${o.filter(x=>x.st===2).length}</span></summary>${gl.map(covCard).join('')}</details>`}).join('')}
+  <button class="btn t" onclick="v={tab:'cov',bulk:1};render()">➕ إضافة قرى للمتابعة</button>
+  <button class="btn t" onclick="setCyc()">⚙️ المدة بين الزيارات (كل ${S.cyc} يوم)</button>
+  <p class="mu">قايمة القرى الجاهزة أولية (حوالي 60 قرية من أكتر من 200) ومجمّعة من مصادر إخبارية، فلو في قرية ناقصة أو اتحطت في مركز غلط، ضيفها أو شيلها.</p>
+  <details class="card"><summary style="min-height:44px;font-weight:700">📍 عملاء من غير موقع (${nol.length})</summary>${nol.map(c=>`<div class="stat" style="font-size:17px;margin:8px 0"><span>${e(c.name)}<br><span class="mu">${e([c.village,c.mz].filter(Boolean).join(' - '))}</span></span><button class="btn t sm" style="flex:none;width:auto;padding:8px 14px" onclick="setLoc('${c.id}')">📍 إضافة</button></div>`).join('')||'<p class="mu">كلهم ليهم موقع ✅</p>'}</details>`}
+
+// ---------- IMPORT CONTACTS ----------
+let pend=[];
+const nrm=s=>(s||'').replace(/[إأآ]/g,'ا').replace(/ى/g,'ي').replace(/ة/g,'ه').replace(/\s+/g,' ').trim();
+const ph10=p=>(p||'').replace(/\D/g,'').slice(-10);
+const qp=s=>{try{return decodeURIComponent(s.replace(/=([0-9A-F]{2})/gi,'%$1'))}catch(_){return s}};
+function splitName(n){n=(n||'').replace(/\s+/g,' ').trim();let nm=n,pl='';
+  const m=n.match(/^(.+?)\s*[-–—،,\/|]\s*([^-–—،,\/|]+)$/);
+  if(m){nm=m[1].trim();pl=m[2].trim()}
+  else{const z=MZ.find(z=>nrm(n).endsWith(' '+nrm(z)));if(z){nm=n.slice(0,n.length-z.length).trim();pl=z}}
+  const mz=MZ.find(z=>nrm(pl)===nrm(z)||nrm(pl)===nrm('مركز '+z)||nrm(pl)===nrm('م '+z))||'';
+  return{name:nm,mz,village:mz?'':pl}}
+function parseVcf(t){t=t.replace(/=\r?\n/g,'').replace(/\r?\n[ \t]/g,'');const out=[];
+  t.split(/BEGIN:VCARD/i).slice(1).forEach(b=>{let fn='',tel='',org='',xm='',xv='';
+    b.split(/\r?\n/).forEach(l=>{const i=l.indexOf(':');if(i<0)return;const k=l.slice(0,i).toUpperCase(),val=l.slice(i+1),d=/QUOTED-PRINTABLE/.test(k)?qp(val):val;
+      if(/^FN(;|$)/.test(k)&&!fn)fn=d.trim();else if(/^TEL/.test(k)&&!tel)tel=d.trim();else if(/^ORG(;|$)/.test(k)&&!org)org=d.replace(/;/g,' ').trim();else if(k==='X-MARKAZ')xm=d.trim();else if(k==='X-VILLAGE')xv=d.trim()});
+    if(fn||tel)out.push({name:fn,phone:tel,shop:org,mz:xm,village:xv})});return out}
+function setPend(l){const have=new Set(S.customers.map(c=>ph10(c.phone)).filter(Boolean)),seen=new Set();
+  pend=l.filter(x=>x.name||x.phone).map(x=>{const s=(x.mz||x.village)?{name:x.name,mz:x.mz||'',village:x.village||''}:splitName(x.name||x.phone),p=(x.phone||'').replace(/[^\d+]/g,''),k=ph10(p),dup=!!k&&(have.has(k)||seen.has(k));if(k)seen.add(k);return{...s,shop:x.shop||'',phone:p,dup,on:!dup}});
+  render()}
+async function pick(){try{const r=await navigator.contacts.select(['name','tel'],{multiple:true});setPend(r.map(c=>({name:(c.name||[])[0]||'',phone:(c.tel||[])[0]||''})))}catch(_){toast('تعذر فتح جهات الاتصال')}}
+function loadVcf(f){if(!f)return;const r=new FileReader();r.onload=()=>{const l=parseVcf(String(r.result));l.length?setPend(l):toast('مفيش جهات اتصال في الملف')};r.readAsText(f,'utf-8')}
+function doImp(){const l=pend.filter(x=>x.on);if(!l.length)return toast('اختار عميل واحد على الأقل');
+  l.forEach(x=>S.customers.push({id:uid(),name:x.name,phone:x.phone,shop:x.shop||'',mz:x.mz,village:x.village,note:'',lat:null,lng:null,link:''}));
+  save();pend=[];toast('تم استيراد '+l.length+' عميل');go('cust')}
+function impView(){const cp=!!(navigator.contacts&&navigator.contacts.select);
+  if(!pend.length)return `<button class="btn t" onclick="go('cust')">→ رجوع</button><h2>استيراد العملاء</h2>
+  <p class="mu">الاسم والقرية أو المركز بيتفصلوا تلقائيًا لو بينهم شرطة (-) أو فاصلة، أو لو الاسم بينتهي باسم مركز. هتشوف المعاينة قبل الحفظ.</p>
+  ${cp?'<button class="btn" onclick="pick()">📱 اختار من جهات الاتصال</button>':''}
+  <label class="btn${cp?' t':''}" style="cursor:pointer">📄 اختار ملف جهات الاتصال (.vcf)<input type="file" accept=".vcf,text/vcard,text/x-vcard,text/plain" onchange="loadVcf(this.files[0])" style="display:none"></label>`;
+  return `<button class="btn t" onclick="pend=[];render()">→ رجوع</button><h2>معاينة الاستيراد</h2>
+  <p><b>${pend.length}</b> جهة اتصال • المحدد <b id="impn">${pend.filter(x=>x.on).length}</b></p>
+  <button class="btn" onclick="doImp()">✔ استيراد المحدد</button>
+  ${pend.map((x,i)=>`<label class="item" style="cursor:pointer"><span><b>${e(x.name)}</b><br><span class="mu">${e(x.phone)}${x.shop?' • '+e(x.shop):''}${x.mz||x.village?' • '+e([x.village,x.mz].filter(Boolean).join(' - ')):''}${x.dup?' • موجود قبل كده':''}</span></span><input type="checkbox" style="width:28px;min-height:28px;margin:0" ${x.on?'checked':''} onchange="pend[${i}].on=this.checked;$('impn').textContent=pend.filter(y=>y.on).length"></label>`).join('')}`}
+
+// ---------- MAP ----------
+const hav=(a,b)=>{const r=x=>x*Math.PI/180,h=Math.sin(r(b.lat-a.lat)/2)**2+Math.cos(r(a.lat))*Math.cos(r(b.lat))*Math.sin(r(b.lng-a.lng)/2)**2;return 12742*Math.asin(Math.sqrt(h))};
+let rad=2,mk='';const MC=['#2e7d32','#1565c0','#ef6c00','#8e24aa','#c62828','#00838f','#6d4c41'],mcol=c=>c.mz&&MZ.includes(c.mz)?MC[MZ.indexOf(c.mz)]:'#888';
+function parseLL(s){s=(s||'').trim();const m=s.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/)||s.match(/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/)||s.match(/[?&](?:q|ll|query|destination)=(-?\d+\.\d+)(?:,|%2C)(-?\d+\.\d+)/i)||s.match(/^(-?\d+\.\d+)\s*[,،]\s*(-?\d+\.\d+)$/);return m?{lat:+m[1],lng:+m[2]}:null}
+function setLoc(id){const t=(prompt('الصق إحداثيات المكان أو رابط طويل من الخرائط (مثال: 28.9101, 31.0902)')||'').trim();if(!t)return;const c=C(id),ll=parseLL(t);if(!ll)return toast('مش لاقي إحداثيات في النص ده');c.lat=ll.lat;c.lng=ll.lng;if(/^https?:/i.test(t))c.link=t;save();toast('تم حفظ الموقع');render()}
+const wp=c=>c.lat!=null?c.lat+','+c.lng:[c.shop||c.name,c.village,c.mz,'بني سويف'].filter(Boolean).join(' ');
+function routeHref(l){l=l.slice(0,10);const w=l.slice(0,-1).map(wp).join('|');return 'https://www.google.com/maps/dir/?api=1&travelmode=driving&destination='+encodeURIComponent(wp(l[l.length-1]))+(w?'&waypoints='+encodeURIComponent(w):'')}
+function plot(l){
+ if(!l.length)return '<div class="card mu">لسه مفيش عملاء ليهم إحداثيات. افتح عميل واضغط "إضافة إحداثيات الموقع".</div>';
+ const W=340,H=300,p=28,la=l.map(c=>c.lat),ln=l.map(c=>c.lng),a=Math.min(...la),b=Math.max(...la),x0=Math.min(...ln),x1=Math.max(...ln),k=Math.cos((a+b)/2*Math.PI/180),dx=(x1-x0)*k,dy=b-a,one=dx<1e-7&&dy<1e-7,sc=one?0:Math.min(dx>1e-7?(W-2*p)/dx:1e9,dy>1e-7?(H-2*p)/dy:1e9),ox=(W-dx*sc)/2,oy=(H-dy*sc)/2;
+ const pt=c=>one?[W/2,H/2]:[ox+(c.lng-x0)*k*sc,oy+(b-c.lat)*sc];
+ return `<div class="card"><svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;background:var(--bg);border-radius:10px"><text x="${W-6}" y="16" font-size="12" fill="var(--mu)" text-anchor="end">⬆ شمال</text>${l.map(c=>{const[x,y]=pt(c);return `<g onclick="open_('${c.id}')" style="cursor:pointer"><circle cx="${x}" cy="${y}" r="10" fill="${mcol(c)}" stroke="var(--card)" stroke-width="2"/><text x="${x}" y="${y+24}" font-size="12" text-anchor="middle" fill="var(--tx)">${e(c.name.split(' ')[0])}</text></g>`}).join('')}</svg><div class="mu" style="line-height:2">${[...new Set(l.map(c=>c.mz||'بدون مركز'))].map(m=>`<span style="white-space:nowrap"><span style="color:${MZ.includes(m)?MC[MZ.indexOf(m)]:'#888'}">●</span> ${e(m)}</span>`).join(' &nbsp; ')}<br>الرسم تقريبي من غير خلفية خرائط، دوس على أي عميل يفتح صفحته</div></div>`}
+function near(l){const left=[...l],out=[];while(left.length){const s=left.shift(),g=[s];for(let i=left.length-1;i>=0;i--)if(hav(s,left[i])<=rad){g.push(left[i]);left.splice(i,1)}out.push(g)}return out.filter(x=>x.length>1)}
+function rowC(c){return `<div class="mu" style="cursor:pointer;padding:6px 0" onclick="open_('${c.id}')">• <b style="color:var(--tx)">${e(c.name)}</b>${c.village?' - '+e(c.village):''} ${balHTML(bal(c.id))}</div>`}
+function mapView(){
+ const all=mk?S.customers.filter(c=>c.mz===mk):S.customers,w=all.filter(c=>c.lat!=null),g={};
+ all.forEach(c=>{const k=c.mz||'بدون مركز';(g[k]=g[k]||[]).push(c)});
+ const cl=near(w);
+ return `<h2>العملاء على الخريطة</h2><select onchange="mk=this.value;render()"><option value="">كل المراكز</option>${MZ.map(m=>`<option${m===mk?' selected':''}>${m}</option>`).join('')}</select>${plot(w)}${all.length>w.length?`<p class="mu">${all.length-w.length} عميل من غير إحداثيات مش ظاهرين في الرسم</p>`:''}
+ <h2>عملاء جمب بعض</h2><select onchange="rad=+this.value;render()">${[1,2,5,10].map(r=>`<option value="${r}"${r===rad?' selected':''}>في حدود ${r} كم</option>`).join('')}</select>
+ ${cl.map(x=>`<div class="card"><b>${x.length} عملاء قريبين</b>${x.map(rowC).join('')}<a class="btn t" target="_blank" rel="noopener" style="margin:8px 0 0" href="${e(routeHref(x))}">🧭 مسار لكلهم (أول 10)</a></div>`).join('')||'<p class="mu">مفيش عملاء قريبين في النطاق ده، أو لسه مضفتش إحداثيات.</p>'}
+ <h2>حسب المركز</h2>${Object.entries(g).sort((a,b)=>b[1].length-a[1].length).map(([k,x])=>`<div class="card"><b>${e(k)}</b> <span class="mu">(${x.length})</span>${x.map(rowC).join('')}<a class="btn t" target="_blank" rel="noopener" style="margin:8px 0 0" href="${e(routeHref(x))}">🧭 مسار لعملاء ${e(k)} (أول 10)</a></div>`).join('')||'<p class="mu">ضيف عملاء الأول.</p>'}`}
+
+migrate();autoMz();render();
+try{if('serviceWorker' in navigator&&location.protocol.indexOf('http')===0)navigator.serviceWorker.register('sw.js').catch(()=>{})}catch(_){}
+</script>
+</body>
+</html>
