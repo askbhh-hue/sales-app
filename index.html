@@ -164,8 +164,8 @@ function custForm(c){const x=c||{},f=(id,ph,val,t)=>`<input id="${id}" ${t?`type
   <button class="btn" onclick="saveC()">حفظ</button>`}
 function saveC(){const n=$('cn').value.trim();if(!n)return toast('اكتب اسم العميل');const l=$('cl').value.trim(),ll=parseLL(l);
   const d={name:n,phone:$('cp').value.trim(),shop:$('cs').value.trim(),mz:$('cm').value,village:$('cv').value.trim(),crop:$('cc').value.trim(),disc:Math.min(Math.max(num($('cd').value)||0,0),100),note:$('ca').value.trim(),lat:ll?ll.lat:null,lng:ll?ll.lng:null,link:/^https?:/i.test(l)?l:''};
-  if(v.cedit){const id=v.cedit,old=C(id);if(!ll&&old.approx&&nk(d.village)===nk(old.village)){d.lat=old.lat;d.lng=old.lng;d.approx=1}else d.approx=0;Object.assign(old,d);save();toast('تم التعديل');open_(id);return fillApprox(id)}
-  const nid=uid();S.customers.push({id:nid,...d});save();toast('تم الحفظ');go('cust');fillApprox(nid)}
+  if(v.cedit){const id=v.cedit,old=C(id);if(!ll&&old.approx&&nk(d.village)===nk(old.village)){d.lat=old.lat;d.lng=old.lng;d.approx=1}else d.approx=0;Object.assign(old,d);save();toast('تم التعديل');return open_(id)}
+  const nid=uid();S.customers.push({id:nid,...d});autoVisit(nid,3);save();toast('تم الحفظ');go('cust');fillApprox(nid)}
 function custView(){const c=C(v.cid);if(!c){v={tab:'cust'};return custList()}const b=bal(c.id);
   const ords=S.orders.filter(o=>o.cid===c.id).sort((a,b)=>b.t-a.t),pays=S.ledger.filter(l=>l.cid===c.id&&l.type==='PAID'&&!l.oid).sort((a,b)=>b.t-a.t).slice(0,8);
   return `${back("go('cust')")}<h2>${e(c.name)}</h2>
@@ -301,11 +301,14 @@ function visitsHTML(cid){const vs=S.visits.filter(x=>x.cid===cid).sort((a,b)=>b.
 function delVisit(id){if(!confirm('تحذف الزيارة دي؟'))return;S.visits=S.visits.filter(x=>x.id!==id);save();render()}
 async function lookupVillage(){const vl=($('lv').value||'').trim(),mz=$('lm').value;if(!vl)return toast('اكتب اسم القرية');
   toast('بدوّر على '+vl+'...');const r=await geoVillage(vl,mz);if(!r)return toast('مالقيتش القرية دي على الخريطة. جرّب كتابة تانية أو اختار المركز');
-  S.vc=S.vc||{};S.vc[nk(mz||'')+'|'+nk(vl)]=r;let n=0;
-  S.customers.forEach(c=>{if(c.lat==null&&c.village&&nk(c.village)===nk(vl)&&(!mz||!c.mz||nk(c.mz)===nk(mz))){c.lat=r.lat;c.lng=r.lng;c.approx=1;c.acc=0;if(!c.mz&&mz)c.mz=mz;n++}});
+  S.vc=S.vc||{};S.vc[nk(mz||'')+'|'+nk(vl)]=r;
+  const n=S.customers.filter(c=>c.lat==null&&c.village&&nk(c.village)===nk(vl)&&(!mz||!c.mz||nk(c.mz)===nk(mz))).length;
   const inG=Object.entries(GZ).some(([z,l])=>(!mz||z===mz)&&l.some(q=>nk(q)===nk(vl))),inC=S.customers.some(c=>nk(c.village||'')===nk(vl));
   if(!inG&&!inC&&!S.places.some(p=>nk(p.vl)===nk(vl)&&(!mz||p.mz===mz)))S.places.push({id:uid(),mz:mz||'بدون مركز',vl});
-  save();lookupRes={vl,mz,n,r};render()}
+  save();lookupRes={vl,mz,n,r,applied:0};render()}
+function applyLookup(){const L=lookupRes;if(!L)return;let n=0;
+  S.customers.forEach(c=>{if(c.lat==null&&c.village&&nk(c.village)===nk(L.vl)&&(!L.mz||!c.mz||nk(c.mz)===nk(L.mz))){c.lat=L.r.lat;c.lng=L.r.lng;c.approx=1;c.acc=0;if(!c.mz&&L.mz)c.mz=L.mz;n++}});
+  L.applied=n;save();toast('اتطبّق على '+n+' عميل');render()}
 
 // ---------- CUSTOMER LOCATION ----------
 function gpsLoc(id){const c=C(id);if(!c)return;if(c.lat!=null&&!c.approx&&!confirm('الموقع محفوظ بالفعل. تحدّثه بموقعك الحالي؟'))return;
@@ -325,19 +328,14 @@ async function pasteLoc(id){const c=C(id);if(!c)return;let t='';
 
 // ---------- COVERAGE ----------
 // قايمة أولية بقرى بني سويف (حوالي 60 قرية من أكتر من 200)، مجمّعة من مصادر إخبارية. ناقصة، وتقدر تضيف عليها أو تشيل منها.
-const GZ={'الواسطى':['الميمون','قمن العروس','أبو صير الملق','ميدوم','أنفسط','أطواب','الرقة الغربية','كوم إدريجة','الديابية','نزلة الجنيدي','بني غنيم','عزبة الراهب','زاوية المصلوب','ونا القس'],
-'ببا':['طرشوب','علي كيلاني','زاوية الناوية','طنسا','سدس','بني قاسم','صفط لاشين','القرامنة','غياضة الشرقية','البرانقة','طوة','كفر منصور','نزلة الشريف','بني عوض','هلية','قمبش','السلطاني','أبو دخان','بني عقبة','فزارة','نزلة الزاوية','الفقيرة','أم الجنازير','أبو شربان'],
-'ناصر':['بوش','بني خليفة','طنسا الملق','الرياض','بني عدي','الحرجة','الحمام','السبخاية'],
-'إهناسيا':['بهنموة','منهرو','منهرة','شاويش','معصرة نعسان','قلة'],
-'سمسطا':['بني حلة','معجون'],
-'الفشن':['صفط الخرسا','تلت','نجع الزموط','مهدي الأخرم','الشقر','الفنت'],
-'بني سويف':['زلطة','معارك','الحلابية']};
-const nk=s=>nrm(s).replace(/^ال/,'');
+const GZ={"الواسطى": ["أبو صير الملق", "أبويط", "أطواب", "أنفسط", "إفوة", "الحومة", "الديابية", "المصلوب", "الميمون", "النواميس", "الهرم", "بني حدير", "بني سليمان", "بني غنيم", "بني محمد", "بني نصير", "جزيرة المساعدة", "جزيرة النور", "زاوية المصلوب", "صفط الشرقية", "صفط الغربية", "عطف إفوة", "قمن العروس", "كفر أبجيج", "كفر بني عثمان", "كوم أبو راضي", "كوم إدريجة", "معصرة أبو صير", "منشأة أبو صير", "ميدوم", "نزلة الجنيدي", "ونا القس"], "ببا": ["البرانقة", "البكرية", "الجزيرة الشرقية", "السلطاني", "الشهيد حسن علام", "الضباعنة", "الفقاعي", "الفقيرة", "القرامنة", "الملاحية", "الملاحية البحرية", "أبو دخان", "أبو شربان", "أم الجنازير", "بني أحمد", "بني خليل", "بني عقبة", "بني عوض", "بني قاسم", "بني مؤمنة", "بني ماضي", "بني محمد الشرقية", "بني هاشم", "جبل النور", "جزيرة الفقاعي", "جزيرة ببا", "رزقة المشارقة", "زاوية الناوية", "سدس", "سدس الأمراء", "صفط راشين", "طحا لبيشة", "طرشوب", "طنسا بني مالو", "طوة", "غياضة الشرقية", "غياضة الغربية", "فزارة", "قمبش الحمراء", "كفر جمعة", "كفر منصور", "كفر ناصر", "منشأة أبو دخان", "منيل موسى", "نزلة الزاوية", "نزلة الشريف", "هلية"], "ناصر": ["أشمنت", "البرج", "الحرجة", "الحمام", "الرياض", "الزيتون", "المنصورة", "الشناوية", "بوش", "بني خليفة", "بني عدي", "بهبشين", "جزيرة أبو صالح", "دلاص", "دنديل", "طحا بوش", "طنسا الملق", "غيط البحري", "كفر الجزيرة", "كوم أبو خلاد", "منشأة الشركة", "منشأة هديب"], "إهناسيا": ["أدراسية", "البهسمون", "الشوبك", "العواونة", "المسيد الأبيض", "النويرة", "براوة الوقف", "بني هاني", "بهنموة", "دير براوة", "سدمنت الجبل", "شرهي", "طما فيوم", "قاي", "قلة", "قلها", "كفر أبو شهبة", "كوم الرمل البحري", "معصرة نعسان", "منشأة الأمراء", "منشأة البديني", "منشأة الحاج", "منشأة طاهر", "منشأة عبد الصمد", "منشأة كساب", "منهرة", "منهرو", "منيل غيضان", "منيل هاني", "ميانة", "نزلة المشارقة", "نزلة المماليك", "نزلة خلف", "نزلة شاويش", "ننا"], "سمسطا": ["الشنطور", "العساكرة", "القصبة", "المحمودية", "بدهل", "بني حلة", "بني محمد راشد", "دشاشة", "دشطوط", "سربو", "عزبة الشنطور", "عزبة قفطان", "كفر الشيخ عابد", "كفر بني علي", "كوم الرمل القبلي", "كوم النور", "مزورة", "منشأة أبو مليح", "منشأة سليمان", "نزلة الديب", "نزلة سعيد"], "الفشن": ["أبسوج", "أقفهص", "البرقي", "الجفادون", "الجمهود", "الحيبة", "الزاوية الخضراء", "الشراهنة", "الشقر", "الفنت", "الفنت الغربية", "القضابي", "القليعة", "الكنيسة", "بسفا", "بني صالح", "بني منين", "تلت", "جزيرة الوكلية", "دلهانس", "شرارة", "شنري", "صالح", "صفط الخرسة", "صفط العرفا", "صفط النور", "طلا", "عزبة البنك", "عزبة تلت", "كفر درويش", "كفر منسابة", "منشأة السادات", "منشأة عمرو", "نزلة أقفهص", "نزلة البرقي", "نزلة حنا حنا"], "بني سويف": ["إبشنا", "إهوة", "أهناسيا الخضراء", "الحكامنة", "الحلابية", "الدوالطة", "الدوية", "الزرابي", "الكوم الأحمر", "باروط", "بلفيا", "بني بخيت", "بني حمد", "بني رضوان", "بني سليمان الشقية", "بني عفان", "بني هارون", "بياض العرب", "تزمنت الشرقية", "تزمنت الغربية", "تل أبو ناروز", "حاجر بني سليمان", "دموشيا", "رياض", "زلطة", "سنور", "شريف", "معارك", "منشأة حيدر يكن", "منشأة عاصم", "منقريش", "نعيم"]};
+const AL={'سيدمنت':'سدمنت الجبل','سدمنت':'سدمنت الجبل','صفط لاشين':'صفط راشين','قمن':'قمن العروس','قمت':'قمن العروس','قمبش':'قمبش الحمراء','قنبش الحمراء':'قمبش الحمراء'};
+const nk=s=>{const x=nrm(s).replace(/^ال/,'');return AL[x]||x};
 let covList=[],cmk='';
 const gname=x=>x.vl||(x.mz==='بدون مركز'?'عملاء بدون مكان':'داخل '+x.mz);
 function autoVisit(cid,src){const d=day0();if(S.visits.some(x=>x.cid===cid&&x.t>=d))return false;S.visits.push({id:uid(),cid,t:Date.now(),auto:src||1});return true}
-function autoMz(){if(S.gz===1)return;const m={};Object.entries(GZ).forEach(([z,l])=>l.forEach(n=>{const k=nk(n);m[k]=m[k]===undefined?z:null}));
-  S.customers.forEach(c=>{if(!c.mz&&c.village){const z=m[nk(c.village)];if(z){c.mz=z;c.mzAuto=1}}});S.gz=1;save()}
+function autoMz(){if(S.gz>=2)return;const m={};Object.entries(GZ).forEach(([z,l])=>l.forEach(n=>{const k=nk(n);m[k]=m[k]===undefined?z:null}));
+  S.customers.forEach(c=>{if(!c.mz&&c.village){const z=m[nk(c.village)];if(z){c.mz=z;c.mzAuto=1}}});S.gz=2;save()}
 function groups(){const g={},lv={},hid=new Set(S.hide);
   const add=(m,vl)=>{const k=m+'|'+nk(vl);return g[k]=g[k]||{mz:m,vl,cs:[],man:0,std:0,key:k}};
   S.customers.forEach(c=>{const x=add(c.mz||'بدون مركز',c.village||'');x.cs.push(c)});
@@ -372,8 +370,8 @@ function covView(){covList=groups();const all=[...MZ,'بدون مركز'],L=cmk?
   return `<h2>متابعة الزيارات</h2>
   <button class="btn" onclick="whereAmI()">📍 أنا هنا دلوقتي: سجّل زياراتي</button>
   <p class="mu" style="margin-top:-4px">بيقارن موقعك بمواقع عملائك الدقيقة ويسجل زيارة لأي عميل في حدود ${VR} متر، وللقرية لو جوّه ${VV} كم من مركزها.${S.auto?' التسجيل التلقائي عند فتح التطبيق شغال.':''}</p>
-  ${lookupRes?`<div class="card">✅ <b>${e(lookupRes.vl)}</b>${lookupRes.mz?' ('+e(lookupRes.mz)+')':''}: اتحدد موقعها وطُبّق على ${lookupRes.n} عميل.<br><span class="mu">${e(lookupRes.r.n||'')}</span><a class="btn t sm" style="margin-top:8px" target="_blank" rel="noopener" href="https://www.google.com/maps/search/?api=1&query=${lookupRes.r.lat},${lookupRes.r.lng}">🗺️ شوفها على الخريطة وراجعها</a></div>`:''}
-  <details class="card"${lookupRes?' open':''}><summary style="min-height:44px;font-weight:700">🔎 اكتب اسم قرية وهات موقعها</summary><input id="lv" placeholder="اسم القرية"><select id="lm"><option value="">المركز (اختياري)</option>${MZ.map(m=>`<option>${m}</option>`).join('')}</select><button class="btn" onclick="lookupVillage()">هات الموقع وطبّقه على العملاء</button></details>
+  ${lookupRes?`<div class="card">✅ <b>${e(lookupRes.vl)}</b>${lookupRes.mz?' ('+e(lookupRes.mz)+')':''}: ${lookupRes.applied?'اتطبّق موقعها على '+lookupRes.applied+' عميل.':'لقيت موقعها (ما اتطبّقش على حد لسه).'}<br><span class="mu">${e(lookupRes.r.n||'')}</span><a class="btn t sm" style="margin-top:8px" target="_blank" rel="noopener" href="https://www.google.com/maps/search/?api=1&query=${lookupRes.r.lat},${lookupRes.r.lng}">🗺️ شوفها على الخريطة وراجعها</a>${lookupRes.n&&!lookupRes.applied?`<button class="btn" style="margin:8px 0 0" onclick="applyLookup()">طبّقه على ${lookupRes.n} عميل من غير موقع في القرية دي</button>`:''}</div>`:''}
+  <details class="card"${lookupRes?' open':''}><summary style="min-height:44px;font-weight:700">🔎 اكتب اسم قرية وهات موقعها</summary><input id="lv" placeholder="اسم القرية"><select id="lm"><option value="">المركز (اختياري)</option>${MZ.map(m=>`<option>${m}</option>`).join('')}</select><button class="btn" onclick="lookupVillage()">هات موقع القرية بس</button></details>
   <select onchange="cmk=this.value;render()"><option value="">كل المراكز</option>${all.map(m=>`<option${m===cmk?' selected':''}>${m}</option>`).join('')}</select>
   <div class="row"><div class="card" style="text-align:center;padding:10px"><div class="red" style="font-size:28px;font-weight:700">${n([3])}</div><div class="mu">لم تُزر خالص</div></div><div class="card" style="text-align:center;padding:10px"><div class="red" style="font-size:28px;font-weight:700">${n([2])}</div><div class="mu">متأخرة</div></div><div class="card" style="text-align:center;padding:10px"><div class="grn" style="font-size:28px;font-weight:700">${n([0,1])}</div><div class="mu">تمام</div></div></div>
   <p class="mu" style="margin-top:-2px">الأرقام دي لقرى عملائك. القرية بتتحسب متزارة لو زرت أي عميل فيها أو عملت له طلب أو تحصيل. المدة المطلوبة: كل ${S.cyc} يوم.</p>
