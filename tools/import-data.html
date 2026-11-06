@@ -25,7 +25,7 @@
   <input type="text" id="sb-key" placeholder="Anon Key (eyJ...)">
   <input type="email" id="sb-email" placeholder="الإيميل (اللي عملته في Authentication)">
   <input type="password" id="sb-pass" placeholder="الباسورد">
-  <button onclick="loginAndSetup()">تسجيل الدخول وبدء النقل</button>
+  <button id="login-btn" onclick="loginAndSetup()">تسجيل الدخول وبدء النقل</button>
 </div>
 
 <div class="card hidden" id="upload-screen">
@@ -50,24 +50,36 @@
   }
 
   async function loginAndSetup() {
-    const url = document.getElementById('sb-url').value.trim();
-    const key = document.getElementById('sb-key').value.trim();
-    const email = document.getElementById('sb-email').value.trim();
-    const pass = document.getElementById('sb-pass').value;
+    try {
+      const url = document.getElementById('sb-url').value.trim();
+      const key = document.getElementById('sb-key').value.trim();
+      const email = document.getElementById('sb-email').value.trim();
+      const pass = document.getElementById('sb-pass').value;
 
-    if(!url || !key || !email || !pass) return alert('أكمل كل البيانات');
+      if(!url || !key || !email || !pass) return alert('أكمل كل البيانات');
+      
+      if (!url.startsWith('https://') || !url.endsWith('.supabase.co')) {
+        return alert('رابط السوبابيز غير صحيح. لازم يبدأ بـ https:// وينتهي بـ .supabase.co');
+      }
 
-    supabase = supabasejs.createClient(url, key);
+      const btn = document.getElementById('login-btn');
+      btn.innerText = 'جاري تسجيل الدخول...';
+      btn.disabled = true;
 
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password: pass });
-    
-    if (error) {
-      alert('خطأ في تسجيل الدخول: ' + error.message);
-      return;
+      supabase = supabasejs.createClient(url, key);
+
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password: pass });
+      
+      if (error) throw new Error(error.message);
+
+      document.getElementById('setup-screen').classList.add('hidden');
+      document.getElementById('upload-screen').classList.remove('hidden');
+    } catch (err) {
+      alert('خطأ: ' + (err.message || 'تأكد من البيانات والإنترنت'));
+      const btn = document.getElementById('login-btn');
+      btn.innerText = 'تسجيل الدخول وبدء النقل';
+      btn.disabled = false;
     }
-
-    document.getElementById('setup-screen').classList.add('hidden');
-    document.getElementById('upload-screen').classList.remove('hidden');
   }
 
   async function startImport(file) {
@@ -86,9 +98,8 @@
     log(`تم العثور على: ${S.customers?.length || 0} عميل، ${S.products?.length || 0} منتج، ${S.orders?.length || 0} طلب.`);
     
     try {
-      // 1. Import Customers
       log('جاري رفع العملاء...');
-      const cMap = {}; // legacy_id -> new uuid
+      const cMap = {};
       if (S.customers && S.customers.length) {
         const rows = S.customers.map(c => ({
           legacy_id: String(c.id),
@@ -115,9 +126,8 @@
         }
       }
 
-      // 2. Import Products
       log('جاري رفع المنتجات...');
-      const pMap = {}; // legacy_id -> new uuid
+      const pMap = {};
       if (S.products && S.products.length) {
         const rows = S.products.map(p => ({
           legacy_id: String(p.id),
@@ -142,9 +152,8 @@
         }
       }
 
-      // 3. Import Orders & Order Items
       log('جاري رفع الطلبات...');
-      const oMap = {}; // legacy_order_id -> new uuid
+      const oMap = {};
       if (S.orders && S.orders.length) {
         for (const o of S.orders) {
           const newCid = cMap[String(o.cid)];
@@ -187,7 +196,6 @@
         log(`تم رفع ${Object.keys(oMap).length} طلب.`);
       }
 
-      // 4. Import Ledger
       log('جاري رفع الحسابات (Ledger)...');
       if (S.ledger && S.ledger.length) {
         const rows = [];
@@ -216,7 +224,6 @@
         log(`تم رفع ${rows.length} حركة حساب.`);
       }
 
-      // 5. Import Visits
       log('جاري رفع الزيارات...');
       if (S.visits && S.visits.length) {
         const rows = [];
@@ -249,7 +256,6 @@
   }
 
   async function reconcile(originalS, cMap) {
-    // حساب إجمالي المديونيات من الملف الأصلي
     let origTotal = 0;
     if(originalS.ledger) {
       originalS.ledger.forEach(l => {
@@ -257,7 +263,6 @@
       });
     }
 
-    // حساب إجمالي المديونيات من السحابة
     const { data: ledgerDb, error } = await supabase.from('ledger').select('type, amt');
     if(error) {
       log('فشل قراءة الحسابات للمطابقة: ' + error.message);
