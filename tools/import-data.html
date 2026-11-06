@@ -3,71 +3,186 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>أداة نقل البيانات للسحابة</title>
+<title>نقل البيانات (نسخة جاهزة)</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
-  body { font-family: system-ui, Tahoma, sans-serif; background: #f4efe4; color: #1d2a22; padding: 20px; line-height: 1.6; }
-  .card { background: #fffdf8; padding: 20px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); max-width: 600px; margin: 0 auto 20px; }
-  input, button { width: 100%; padding: 10px; margin: 8px 0; border: 1px solid #ccc; border-radius: 8px; box-sizing: border-box; font-size: 16px; }
+  body { font-family: system-ui, Tahoma, sans-serif; background: #f4efe4; padding: 20px; }
+  .card { background: #fff; padding: 20px; border-radius: 12px; max-width: 600px; margin: auto; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+  input, button { width: 100%; padding: 12px; margin: 8px 0; font-size: 16px; border: 1px solid #ccc; border-radius: 8px; box-sizing: border-box; }
   button { background: #1f4d2e; color: white; border: none; cursor: pointer; font-weight: bold; }
-  button:disabled { background: #999; }
+  .log { height: 200px; overflow: auto; background: #222; color: #0f0; padding: 10px; font-family: monospace; font-size: 12px; border-radius: 8px; text-align: left; direction: ltr; margin-top:10px;}
   .hidden { display: none; }
+  .version { text-align: center; color: gray; font-size: 12px; margin-bottom: 10px; }
 </style>
 </head>
 <body>
 
-<div class="card" id="setup-screen">
-  <h2>إعداد الاتصال بـ Supabase</h2>
-  <input type="text" id="sb-url" placeholder="Project URL (https://xxx.supabase.co)">
-  <input type="text" id="sb-key" placeholder="Anon Key (eyJ...)">
-  <input type="email" id="sb-email" placeholder="الإيميل">
+<div class="card" id="setup">
+  <div class="version">نسخة محدثة ومبرمجة برابط ومفتاح جاهزين ✅</div>
+  <h2>تسجيل الدخول لسوبابيز</h2>
+  <p style="color:green;font-weight:bold">تم إدخال الرابط والمفتاح تلقائياً.</p>
+  <input type="email" id="sb-email" placeholder="الإيميل (اللي عملته)">
   <input type="password" id="sb-pass" placeholder="الباسورد">
-  <button id="login-btn" onclick="loginAndSetup()">تسجيل الدخول وبدء النقل</button>
+  <button onclick="doLogin()">تسجيل الدخول</button>
 </div>
 
-<div class="card hidden" id="upload-screen">
+<div class="card hidden" id="upload">
   <h2>اختر ملف النسخة الاحتياطية</h2>
   <input type="file" id="json-file" accept=".json" onchange="startImport(this.files[0])">
-  <div id="log" style="height:200px; overflow:auto; background:#222; color:#0f0; padding:10px; font-family:monospace;"></div>
+  <div id="log" class="log">بانتظار الملف...</div>
+</div>
+
+<div class="card hidden" id="result">
+  <h2>تقرير المطابقة</h2>
+  <div id="report"></div>
 </div>
 
 <script>
-  let supabase;
-  function log(msg) { document.getElementById('log').innerHTML += msg + '<br>'; }
+  // الرابط والمفتاح الصح متسجلين هنا
+  const SB_URL = "https://hioringmhouagmmtvdcp.supabase.co";
+  const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imhpb3JpbmdtaG91YWdtbXR2ZGNwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTM5ODM3MjQsImV4cCI6MjEwOTU1OTcyNH0.Zv9sSxuVSgvjnjP7DtPplfAvMeg3W9IiBY_WnDSsunQ";
+  
+  let sb;
+  function log(msg) { 
+    document.getElementById('log').innerHTML += msg + '<br>'; 
+  }
 
-  async function loginAndSetup() {
+  async function doLogin() {
     try {
-      const url = document.getElementById('sb-url').value.trim();
-      const key = document.getElementById('sb-key').value.trim();
       const email = document.getElementById('sb-email').value.trim();
       const pass = document.getElementById('sb-pass').value;
+      if(!email || !pass) return alert('أكمل الإيميل والباسورد');
 
-      if(!url || !key || !email || !pass) return alert('أكمل كل البيانات');
-      
-      if (!url.startsWith('https://') || !url.endsWith('.co')) {
-        return alert('الرابط غلط. لازم يبدأ بـ https:// وينتهي بـ .co');
-      }
-
-      const btn = document.getElementById('login-btn');
-      btn.innerText = 'جاري تسجيل الدخول...';
-
-      supabase = supabasejs.createClient(url, key);
-
-      const { data, error } = await supabase.auth.signInWithPassword({ email, password: pass });
+      sb = supabasejs.createClient(SB_URL, SB_KEY);
+      const { data, error } = await sb.auth.signInWithPassword({ email, password: pass });
       
       if (error) throw new Error(error.message);
 
-      document.getElementById('setup-screen').classList.add('hidden');
-      document.getElementById('upload-screen').classList.remove('hidden');
+      document.getElementById('setup').classList.add('hidden');
+      document.getElementById('upload').classList.remove('hidden');
     } catch (err) {
-      alert('مشكلة: ' + (err.message || 'تأكد من الإنترنت'));
-      document.getElementById('login-btn').innerText = 'تسجيل الدخول وبدء النقل';
+      alert('خطأ في الدخول: ' + (err.message || 'تأكد من البيانات والإنترنت'));
     }
   }
 
-  // (باقي كود النقل هنا)
   async function startImport(file) {
-      log('جاهز للنقل...');
+    if(!file) return;
+    log('بدأت القراءة...');
+    const text = await file.text();
+    let S;
+    try { S = JSON.parse(text); } catch (e) { return log('<span style="color:red">الملف غير صالح (مش JSON)</span>'); }
+
+    log(`العملاء: ${S.customers?.length || 0} | المنتجات: ${S.products?.length || 0} | الطلبات: ${S.orders?.length || 0}`);
+    
+    try {
+      log('جاري رفع العملاء...');
+      const cMap = {};
+      if (S.customers && S.customers.length) {
+        const rows = S.customers.map(c => ({
+          legacy_id: String(c.id), name: c.name || 'بدون اسم', phone: c.phone || '', shop: c.shop || '', mz: c.mz || '', village: c.village || '', crop: c.crop || '', disc: Number(c.disc) || 0, note: c.note || '', lat: c.lat != null ? Number(c.lat) : null, lng: c.lng != null ? Number(c.lng) : null, approx: !!c.approx, lim: Number(c.lim) || 0
+        }));
+        for (let i = 0; i < rows.length; i += 100) {
+          const chunk = rows.slice(i, i + 100);
+          const { data, error } = await sb.from('customers').insert(chunk).select('id, legacy_id');
+          if (error) throw new Error('فشل رفع العملاء: ' + error.message);
+          data.forEach(d => { cMap[d.legacy_id] = d.id; });
+          log(`تم رفع ${Math.min(i + 100, rows.length)} / ${rows.length} عميل.`);
+        }
+      }
+
+      log('جاري رفع المنتجات...');
+      const pMap = {};
+      if (S.products && S.products.length) {
+        const rows = S.products.map(p => ({
+          legacy_id: String(p.id), name: p.name || 'بدون اسم', cat: p.cat || 'أسمدة', unit: p.unit || 'عبوة', price: Number(p.price) || 0, cost: Number(p.cost) || 0, stock: Number(p.stock) || 0, min: Number(p.min) || 0, ai: p.ai || '', sz: p.sz || '', barcode: p.barcode || ''
+        }));
+        for (let i = 0; i < rows.length; i += 100) {
+          const chunk = rows.slice(i, i + 100);
+          const { data, error } = await sb.from('products').insert(chunk).select('id, legacy_id');
+          if (error) throw new Error('فشل رفع المنتجات: ' + error.message);
+          data.forEach(d => { pMap[d.legacy_id] = d.id; });
+          log(`تم رفع ${Math.min(i + 100, rows.length)} / ${rows.length} منتج.`);
+        }
+      }
+
+      log('جاري رفع الطلبات...');
+      const oMap = {};
+      if (S.orders && S.orders.length) {
+        for (const o of S.orders) {
+          const newCid = cMap[String(o.cid)];
+          if (!newCid) continue;
+          const { data: orderData, error: orderErr } = await sb.from('orders').insert({
+            legacy_id: String(o.id), cid: newCid, t: new Date(o.t).toISOString(), total: Number(o.total) || 0, paid: Number(o.paid) || 0, disc: Number(o.disc) || 0, cx: !!o.cx
+          }).select('id').single();
+          if (orderErr) { log('فشل طلب: ' + orderErr.message); continue; }
+          const newOid = orderData.id;
+          oMap[String(o.id)] = newOid;
+          if (o.items && o.items.length) {
+            const items = o.items.map(i => {
+              const newPid = pMap[String(i.pid)];
+              if(!newPid) return null;
+              return { order_id: newOid, pid: newPid, name: i.name || 'منتج', qty: Number(i.qty) || 1, price: Number(i.price) || 0 };
+            }).filter(Boolean);
+            if (items.length) await sb.from('order_items').insert(items);
+          }
+        }
+        log(`تم رفع ${Object.keys(oMap).length} طلب.`);
+      }
+
+      log('جاري رفع الحسابات...');
+      if (S.ledger && S.ledger.length) {
+        const rows = [];
+        for (const l of S.ledger) {
+          const newCid = cMap[String(l.cid)];
+          if (!newCid) continue;
+          rows.push({
+            legacy_id: String(l.id), cid: newCid, type: l.type === 'OWES' || l.type === 'PAID' ? l.type : 'PAID', amt: Number(l.amt) || 0, t: new Date(l.t).toISOString(), oid: l.oid ? oMap[String(l.oid)] : null, note: l.note || '', entry_type: l.oid ? 'order' : 'collection'
+          });
+        }
+        for (let i = 0; i < rows.length; i += 100) {
+          await sb.from('ledger').insert(rows.slice(i, i + 100));
+        }
+        log(`تم رفع ${rows.length} حركة حساب.`);
+      }
+
+      log('جاري رفع الزيارات...');
+      if (S.visits && S.visits.length) {
+        const rows = [];
+        for (const v of S.visits) {
+          const newCid = cMap[String(v.cid)];
+          if (!newCid) continue;
+          rows.push({ legacy_id: String(v.id), cid: newCid, t: new Date(v.t).toISOString(), auto: v.auto || 0, res: v.res || '', note: v.note || '' });
+        }
+        for (let i = 0; i < rows.length; i += 100) {
+          await sb.from('visits').insert(rows.slice(i, i + 100));
+        }
+        log(`تم رفع ${rows.length} زيارة.`);
+      }
+
+      log('<span style="color:green;font-weight:bold">✅ تم رفع البيانات بنجاح!</span>');
+      
+      // حساب المطابقة
+      let origTotal = 0;
+      if(S.ledger) S.ledger.forEach(l => { origTotal += (l.type === 'OWES' ? Number(l.amt) : -Number(l.amt)); });
+      
+      const { data: ledgerDb } = await sb.from('ledger').select('type, amt');
+      let cloudTotal = 0;
+      if (ledgerDb) ledgerDb.forEach(l => { cloudTotal += (l.type === 'OWES' ? Number(l.amt) : -Number(l.amt)); });
+      
+      document.getElementById('upload').classList.add('hidden');
+      document.getElementById('result').classList.remove('hidden');
+      let html = `<p>إجمالي المديونيات في التطبيق: <b>${origTotal.toFixed(2)}</b> ج</p>
+                  <p>إجمالي المديونيات في السحابة: <b>${cloudTotal.toFixed(2)}</b> ج</p>`;
+      if (Math.abs(origTotal - cloudTotal) < 0.01) {
+        html += `<h3 style="color:green">✅ تطابق تام 100%!</h3>`;
+      } else {
+        html += `<h3 style="color:red">⚠️ يوجد فرق، راجع البيانات.</h3>`;
+      }
+      document.getElementById('report').innerHTML = html;
+
+    } catch (err) {
+      log('<span style="color:red">❌ خطأ: ' + err.message + '</span>');
+    }
   }
 </script>
 </body>
