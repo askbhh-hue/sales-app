@@ -20,7 +20,7 @@
 <div class="card" id="setup">
   <div class="title">إعداد الاتصال بـ Supabase (جاهز ✅)</div>
   <p style="font-size:14px; color:gray; text-align:center;">الرابط والمفتاح متسجلين تلقائياً.</p>
-  <input type="email" id="sb-email" placeholder="الإيميل (mahmoud.ahmed.ragab@outlook.com)">
+  <input type="email" id="sb-email" placeholder="الإيميل">
   <input type="password" id="sb-pass" placeholder="الباسورد">
   <button onclick="doLogin()">تسجيل الدخول</button>
 </div>
@@ -49,7 +49,8 @@
       const pass = document.getElementById('sb-pass').value;
       if(!email || !pass) return alert('اكتب الإيميل والباسورد');
 
-      sb = supabasejs.createClient(SB_URL, SB_KEY);
+      // هنا الغلطة اتصلحت (supabase بدل supabasejs)
+      sb = supabase.createClient(SB_URL, SB_KEY);
       const { error } = await sb.auth.signInWithPassword({ email, password: pass });
       
       if (error) throw new Error(error.message);
