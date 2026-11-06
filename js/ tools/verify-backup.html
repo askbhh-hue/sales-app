@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>فحص النسخة الاحتياطية — مندوب المبيعات</title>
+<style>
+  :root { --bg:#f4efe4; --surf:#fffdf8; --line:#e2d9c4; --tx:#1d2a22; --mu:#6a6e62; --pr:#1f4d2e; --red:#b3261e; --grn:#2e7d4f; --amb:#8a5a00; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--tx); font-family: Cairo, Tahoma, Arial, sans-serif; line-height:1.7; }
+  main { max-width:820px; margin:0 auto; padding:18px 14px 60px; }
+  h1 { font-size:24px; margin:0 0 6px; }
+  h2 { font-size:17px; margin:24px 0 8px; color:var(--pr); }
+  .card { background:var(--surf); border:1px solid var(--line); border-radius:16px; padding:16px; margin:12px 0; }
+  .mu { color:var(--mu); font-size:14px; }
+  .row { display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+  input[type=file] { width:100%; padding:12px; background:var(--surf); border:1px dashed var(--line); border-radius:12px; }
+  button { min-height:46px; border:0; border-radius:12px; background:var(--pr); color:#fff; font:inherit; font-weight:700; padding:10px 16px; cursor:pointer; }
+  button.t { background:var(--surf); color:var(--tx); border:1px solid var(--line); }
+  .kpis { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .kpi { background:var(--surf); border:1px solid var(--line); border-radius:14px; padding:12px; }
+  .kpi b { display:block; font-size:22px; }
+  .kpi span { font-size:13px; color:var(--mu); }
+  .badge { display:inline-block; border-radius:999px; padding:2px 10px; font-size:12px; font-weight:700; }
+  .badge.ok { background:#e1efe6; color:var(--grn); }
+  .badge.warn { background:#f8ebcf; color:var(--amb); }
+  .badge.bad { background:#fbe7e4; color:var(--red); }
+  .item { border-top:1px solid var(--line); padding:10px 0; }
+  .item:first-child { border-top:0; }
+  .red { color:var(--red); }
+  .grn { color:var(--grn); }
+  .amb { color:var(--amb); }
+  .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; direction:ltr; text-align:left; word-break:break-all; font-size:12px; }
+  @media print { .no-print { display:none !important; } body { background:#fff; } .card { break-inside:avoid; } }
+</style>
+</head>
+<body>
+<main>
+  <h1>🔎 فحص النسخة الاحتياطية</h1>
+  <p class="mu">الملف بيتقرأ على جهازك فقط. مفيش أي بيانات بتتبعت لأي سيرفر. افتح الصفحة من GitHub Pages (HTTPS) عشان بصمة SHA-256 تشتغل.</p>
+
+  <div class="card no-print">
+    <label><b>اختار ملف النسخة (.json)</b></label>
+    <input type="file" id="file" accept=".json,application/json">
+    <div class="row" style="margin-top:12px">
+      <label style="display:flex;gap:8px;align-items:center">
+        <input type="checkbox" id="showFull" onchange="renderReport()" style="width:20px;height:20px">
+        إظهار الأسماء كاملة في التقرير
+      </label>
+      <button class="t" onclick="downloadReport()">⬇ تنزيل التقرير</button>
+      <button class="t" onclick="window.print()">🖨 طباعة</button>
+    </div>
+    <p class="mu" style="margin:10px 0 0">افتراضيًا الأسماء مقنّعة (مثال: أح***) عشان تقدر تشارك التقرير بأمان.</p>
+  </div>
+
+  <div id="report"></div>
+</main>
+
+<script>
+(function () {
+  'use strict';
+
+  var DATA = null, FILE_NAME = '', FILE_SIZE = 0, CHECKSUM = '...';
+  var REQUIRED = ['customers', 'products', 'orders', 'ledger', 'visits'];
+
+  function $(id) { return document.getElementById(id); }
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+      return ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' })[c];
+    });
+  }
+  function num(v) { var n = Number(v); return Number.isFinite(n) ? n : NaN; }
+  function money(n) {
+    n = Number(n);
+    if (!Number.isFinite(n)) n = 0;
+    return (Math.round(n * 100) / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+  function mask(s) {
+    s = String(s == null ? '' : s).trim();
+    if (!s) return '—';
+    if ($('showFull').checked) return s;
+    if (s.length <= 2) return s[0] + '***';
+    return s.slice(0, 2) + '***';
+  }
+  function badge(ok, text) {
+    return '<span class="badge ' + (ok ? 'ok' : 'bad') + '">' + esc(text) + '</span>';
+  }
+  function dupIds(arr) {
+    var seen = {}, dup = {};
+    (arr || []).forEach(function (x) {
+      var id = x && x.id;
+      if (!id) return;
+      if (seen[id]) dup[id] = true;
+      seen[id] = true;
+    });
+    return Object.keys(dup);
+  }
+  async function sha256(text) {
+    if (!(window.crypto && crypto.subtle)) return 'غير متاح — افتح الصفحة من GitHub Pages (HTTPS)';
+    var buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
+    return Array.from(new Uint8Array(buf)).map(function (b) {
+      return b.toString(16).padStart(2, '0');
+    }).join('');
+  }
+
+  function analyze(o) {
+    var a = {
+      counts: {}, errors: [], warns: [], info: [],
+      bal: {}, debtors: [], creditCount: 0,
+      totalDebt: 0, totalCredit: 0, net: 0,
+      auxKeys: [], checksum: CHECKSUM
+    };
+
+    REQUIRED.forEach(function (k) {
+      if (!Array.isArray(o[k])) a.errors.push('الحقل «' + k + '» مش موجود أو مش مصفوفة');
+    });
+    if (a.errors.length) return a;
+
+    var C = o.customers, P = o.products, O = o.orders, L = o.ledger, V = o.visits;
+
+    a.counts = {
+      customers: C.length,
+      products: P.length,
+      orders: O.length,
+      ordersActive: O.filter(function (x) { return x && !x.cx; }).length,
+      ordersCancelled: O.filter(function (x) { return x && x.cx; }).length,
+      ledger: L.length,
+      visits: V.length
+    };
+
+    var cidSet = {}, pidSet = {}, oidSet = {};
+    C.forEach(function (c) { if (c && c.id) cidSet[c.id] = true; });
+    P.forEach(function (p) { if (p && p.id) pidSet[p.id] = true; });
+    O.forEach(function (x) { if (x && x.id) oidSet[x.id] = true; });
+
+    dupIds(C).forEach(function (id) { a.errors.push('ID عميل مكرر: ' + id); });
+    dupIds(P).forEach(function (id) { a.errors.push('ID منتج مكرر: ' + id); });
+    dupIds(O).forEach(function (id) { a.errors.push('ID طلب مكرر: ' + id); });
+    dupIds(L).forEach(function (id) { a.errors.push('ID حركة مكرر: ' + id); });
+    dupIds(V).forEach(function (id) { a.errors.push('ID زيارة مكرر: ' + id); });
+
+    // Balances from ledger
+    var badAmt = 0, badType = 0;
+    L.forEach(function (l) {
+      if (!l || !l.cid) return;
+      var amt = num(l.amt);
+      if (!Number.isFinite(amt)) { badAmt++; return; }
+      if (l.type !== 'OWES' && l.type !== 'PAID') { badType++; return; }
+      a.bal[l.cid] = (a.bal[l.cid] || 0) + (l.type === 'OWES' ? amt : -amt);
+    });
+    Object.keys(a.bal).forEach(function (cid) {
+      a.bal[cid] = Math.round(a.bal[cid] * 100) / 100;
+      if (a.bal[cid] > 0.009) a.totalDebt += a.bal[cid];
+      else if (a.bal[cid] < -0.009) { a.totalCredit += a.bal[cid]; a.creditCount++; }
+    });
+    a.totalDebt = Math.round(a.totalDebt * 100) / 100;
+    a.totalCredit = Math.round(a.totalCredit * 100) / 100;
+    a.net = Math.round((a.totalDebt + a.totalCredit) * 100) / 100;
+
+    a.debtors = Object.keys(a.bal).map(function (cid) {
+      var c = null;
+      for (var i = 0; i < C.length; i++) if (C[i] && C[i].id === cid) { c = C[i]; break; }
+      return { cid: cid, c: c, b: a.bal[cid] };
+    }).filter(function (x) { return x.b > 0.009; }).sort(function (x, y) { return y.b - x.b; }).slice(0, 10);
+
+    // Orders
+    var orderMismatch = [], orderPaidOver = [], orderOrphanProd = [], orderOrphanCust = [], orderNeg = 0;
+    O.forEach(function (ord) {
+      if (!ord) return;
+      if (ord.cid && !cidSet[ord.cid]) orderOrphanCust.push(ord.id);
+      var items = Array.isArray(ord.items) ? ord.items : [];
+      var sum = 0;
+      items.forEach(function (it) {
+        var q = num(it && it.qty), p = num(it && it.price);
+        if (Number.isFinite(q) && Number.isFinite(p)) sum += q * p;
+        if (it && it.pid && !pidSet[it.pid]) orderOrphanProd.push(ord.id);
+      });
+      var total = num(ord.total), disc = num(ord.disc) || 0, paid = num(ord.paid);
+      if (Number.isFinite(total) && Math.abs(sum - disc - total) > 0.011) {
+        orderMismatch.push({ id: ord.id, expected: Math.round((sum - disc) * 100) / 100, total: total });
+      }
+      if (Number.isFinite(paid) && Number.isFinite(total) && paid > total + 0.011) {
+        orderPaidOver.push({ id: ord.id, paid: paid, total: total });
+      }
+      if ((Number.isFinite(total) && total < 0) || (Number.isFinite(paid) && paid < 0)) orderNeg++;
+    });
+
+    // Ledger refs
+    var ledgerOrphanCust = 0, ledgerOrphanOrder = 0;
+    L.forEach(function (l) {
+      if (!l) return;
+      if (l.cid && !cidSet[l.cid]) ledgerOrphanCust++;
+      if (l.oid && !oidSet[l.oid]) ledgerOrphanOrder++;
+    });
+
+    // Visits
+    var visitOrphan = 0;
+    V.forEach(function (v) { if (v && v.cid && !cidSet[v.cid]) visitOrphan++; });
+
+    // Products
+    var negStock = 0, negPrice = 0, badCost = 0, zeroPrice = 0;
+    P.forEach(function (p) {
+      if (!p) return;
+      var s = num(p.stock), pr = num(p.price), c = num(p.cost);
+      if (Number.isFinite(s) && s < 0) negStock++;
+      if (Number.isFinite(pr) && pr < 0) negPrice++;
+      if (p.cost != null && !Number.isFinite(c)) badCost++;
+      if (Number.isFinite(pr) && pr === 0) zeroPrice++;
+    });
+
+    // Customers
+    var noName = 0, badDisc = 0, noLoc = 0, dupPhone = 0, phoneSeen = {};
+    C.forEach(function (c) {
+      if (!c || !String(c.name || '').trim()) noName++;
+      var d = num(c.disc);
+      if (Number.isFinite(d) && (d < 0 || d > 100)) badDisc++;
+      if (c.lat == null || c.lng == null) noLoc++;
+      var ph = String(c.phone || '').replace(/\D/g, '').slice(-10);
+      if (ph.length >= 10) {
+        if (phoneSeen[ph]) dupPhone++;
+        else phoneSeen[ph] = true;
+      }
+    });
+
+    // Warnings
+    if (badAmt) a.errors.push(badAmt + ' حركة حساب فيها مبلغ غير رقمي');
+    if (badType) a.errors.push(badType + ' حركة حساب نوعها مش OWES/PAID');
+    if (orderMismatch.length) a.warns.push(orderMismatch.length + ' طلب إجماليه مش مطابق لمجموع الأصناف − الخصم');
+    if (orderPaidOver.length) a.warns.push(orderPaidOver.length + ' طلب مدفوع أكتر من إجماليه');
+    if (orderOrphanProd.length) a.warns.push(orderOrphanProd.length + ' سطر طلب منتجه مش موجود');
+    if (orderOrphanCust.length) a.warns.push(orderOrphanCust.length + ' طلب عميله مش موجود');
+    if (orderNeg) a.warns.push(orderNeg + ' طلب فيه إجمالي أو مدفوع بالسالب');
+    if (ledgerOrphanCust) a.warns.push(ledgerOrphanCust + ' حركة حساب عميلها مش موجود');
+    if (ledgerOrphanOrder) a.warns.push(ledgerOrphanOrder + ' حركة حساب مرتبطة بطلب مش موجود');
+    if (visitOrphan) a.warns.push(visitOrphan + ' زيارة عميلها مش موجود');
+    if (negStock) a.warns.push(negStock + ' منتج مخزونه بالسالب');
+    if (negPrice) a.warns.push(negPrice + ' منتج سعره بالسالب');
+    if (badCost) a.warns.push(badCost + ' منتج تكلفته غير رقمية');
+    if (noName) a.warns.push(noName + ' عميل من غير اسم');
+    if (badDisc) a.warns.push(badDisc + ' عميل خصمه خارج 0–100');
+    if (dupPhone) a.warns.push(dupPhone + ' رقم تليفون مكرر بين عملاء');
+    if (zeroPrice) a.info.push(zeroPrice + ' منتج سعره صفر (ممكن يكون مقصود)');
+    if (noLoc) a.info.push(noLoc + ' عميل من غير إحداثيات');
+
+    var known = {};
+    REQUIRED.forEach(function (k) { known[k] = true; });
+    known.__ts = true; known.dv = true;
+    a.auxKeys = Object.keys(o).filter(function (k) { return !known[k]; });
+
+    return a;
+  }
+
+  function renderReport() {
+    var el = $('report');
+    if (!DATA) { el.innerHTML = ''; return; }
+
+    var a = analyze(DATA);
+    if (a.errors.length && !a.counts.customers) {
+      el.innerHTML = '<div class="card"><h2 class="red">الملف مش صالح</h2>' +
+        a.errors.map(function (e) { return '<div class="item red">' + esc(e) + '</div>'; }).join('') +
+        '</div>';
+      return;
+    }
+
+    var h = '';
+    h += '<div class="card"><h2>ملخص سريع</h2><div class="kpis">' +
+      '<div class="kpi"><b>' + a.counts.customers + '</b><span>عميل</span></div>' +
+      '<div class="kpi"><b>' + a.counts.products + '</b><span>منتج</span></div>' +
+      '<div class="kpi"><b>' + a.counts.ordersActive + '</b><span>طلب نشط</span></div>' +
+      '<div class="kpi"><b>' + a.counts.ordersCancelled + '</b><span>طلب ملغي</span></div>' +
+      '<div class="kpi"><b>' + a.counts.ledger + '</b><span>حركة حساب</span></div>' +
+      '<div class="kpi"><b>' + a.counts.visits + '</b><span>زيارة</span></div>' +
+      '</div></div>';
+
+    h += '<div class="card"><h2>الأرصدة (من الـ ledger)</h2>' +
+      '<div class="kpi"><b>' + money(a.totalDebt) + ' ج</b><span>إجمالي المديونيات (موجب)</span></div>' +
+      '<div class="kpi" style="margin-top:10px"><b>' + money(Math.abs(a.totalCredit)) + ' ج</b><span>إجمالي الأرصدة الدائنة (سالب) — ' + a.creditCount + ' عميل</span></div>' +
+      '<div class="kpi" style="margin-top:10px"><b>' + money(a.net) + ' ج</b><span>الصافي (مديونيات − دائن)</span></div>' +
+      '<p class="mu" style="margin-top:10px">قارن «إجمالي المديونيات» ده مع شاشة المديونيات في التطبيق. لازم يتطابقوا لقرشين. لو مختلفين، متكملش migration.</p>' +
+      '</div>';
+
+    if (a.debtors.length) {
+      h += '<div class="card"><h2>أكبر 10 مديونيات</h2>' + a.debtors.map(function (x) {
+        var name = x.c ? mask(x.c.name) : ('ID: ' + x.cid);
+        var village = x.c && x.c.village ? ' — ' + esc(x.c.village) : '';
+        return '<div class="item"><b>' + esc(name) + '</b>' + village + ' <span class="red">' + money(x.b) + ' ج</span></div>';
+      }).join('') + '</div>';
+    }
+
+    h += '<div class="card"><h2>الفحوصات</h2>';
+    if (!a.errors.length && !a.warns.length) {
+      h += '<div class="item grn">✅ مفيش أخطاء أو تحذيرات واضحة في البنية.</div>';
+    }
+    a.errors.forEach(function (e) { h += '<div class="item">' + badge(false, 'خطأ') + ' ' + esc(e) + '</div>'; });
+    a.warns.forEach(function (w) { h += '<div class="item">' + badge(false, 'تحذير') + ' ' + esc(w) + '</div>'; });
+    a.info.forEach(function (i) { h += '<div class="item">' + badge(true, 'معلومة') + ' ' + esc(i) + '</div>'; });
+    h += '</div>';
+
+    if (a.auxKeys.length) {
+      h += '<div class="card"><h2>مفاتيح إضافية في S (' + a.auxKeys.length + ')</h2>' +
+        '<p class="mu">دي مش من المصفوفات الستة الأساسية. الـ importer لازم يقرر: تتنقل، تتجاهل، أو تتحول لجدول.</p>' +
+        '<div class="mono">' + esc(a.auxKeys.join(', ')) + '</div></div>';
+    }
+
+    h += '<div class="card"><h2>بصمة الملف</h2>' +
+      '<div class="mu">اسم الملف: ' + esc(FILE_NAME) + '</div>' +
+      '<div class="mu">الحجم: ' + Math.round(FILE_SIZE / 1024) + ' KB</div>' +
+      '<div class="mono" style="margin-top:8px">' + esc(CHECKSUM) + '</div>' +
+      '<p class="mu">احفظ البصمة دي مع النسخة. لو بصمتين مختلفتين لنفس الملف، يبقى الملف اتغيّر.</p></div>';
+
+    el.innerHTML = h;
+  }
+
+  function reportText() {
+    if (!DATA) return '';
+    var a = analyze(DATA);
+    var L = [];
+    L.push('تقرير فحص النسخة الاحتياطية');
+    L.push('التاريخ: ' + new Date().toLocaleString('ar-EG'));
+    L.push('الملف: ' + FILE_NAME);
+    L.push('الحجم: ' + Math.round(FILE_SIZE / 1024) + ' KB');
+    L.push('SHA-256: ' + CHECKSUM);
+    L.push('');
+    L.push('العدد:');
+    L.push('- عملاء: ' + a.counts.customers);
+    L.push('- منتجات: ' + a.counts.products);
+    L.push('- طلبات نشطة: ' + a.counts.ordersActive + ' / ملغية: ' + a.counts.ordersCancelled);
+    L.push('- حركات حساب: ' + a.counts.ledger);
+    L.push('- زيارات: ' + a.counts.visits);
+    L.push('');
+    L.push('الأرصدة:');
+    L.push('- إجمالي المديونيات: ' + money(a.totalDebt) + ' ج');
+    L.push('- إجمالي الدائن: ' + money(Math.abs(a.totalCredit)) + ' ج (' + a.creditCount + ' عميل)');
+    L.push('- الصافي: ' + money(a.net) + ' ج');
+    L.push('');
+    L.push('أكبر 10 مديونيات:');
+    a.debtors.forEach(function (x, i) {
+      var name = x.c ? mask(x.c.name) : ('ID: ' + x.cid);
+      L.push((i + 1) + '. ' + name + ' — ' + money(x.b) + ' ج');
+    });
+    L.push('');
+    L.push('الأخطاء: ' + (a.errors.length ? a.errors.join(' | ') : 'مفيش'));
+    L.push('التحذيرات: ' + (a.warns.length ? a.warns.join(' | ') : 'مفيش'));
+    L.push('مفاتيح إضافية: ' + a.auxKeys.join(', '));
+    return L.join('\n');
+  }
+
+  function downloadReport() {
+    var txt = reportText();
+    if (!txt) return;
+    var blob = new Blob([txt], { type: 'text/plain;charset=utf-8' });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'backup-verify-' + new Date().toISOString().slice(0, 10) + '.txt';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  }
+  window.downloadReport = downloadReport;
+  window.renderReport = renderReport;
+
+  $('file').addEventListener('change', async function (e) {
+    var f = e.target.files && e.target.files[0];
+    if (!f) return;
+    FILE_NAME = f.name;
+    FILE_SIZE = f.size;
+    var text = await f.text();
+    CHECKSUM = await sha256(text);
+    try {
+      DATA = JSON.parse(text);
+    } catch (err) {
+      DATA = null;
+      $('report').innerHTML = '<div class="card red"><b>الملف مش JSON صالح.</b><div class="mu">اتأكد إنك اخترت ملف النسخة الاحتياطية نفسه، مش نسخة نصية.</div></div>';
+      return;
+    }
+    renderReport();
+  });
+})();
+</script>
+</body>
+</html>
