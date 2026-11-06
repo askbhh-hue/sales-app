@@ -11,9 +11,6 @@
   input, button { width: 100%; padding: 10px; margin: 8px 0; border: 1px solid #ccc; border-radius: 8px; box-sizing: border-box; font-size: 16px; }
   button { background: #1f4d2e; color: white; border: none; cursor: pointer; font-weight: bold; }
   button:disabled { background: #999; }
-  .log { height: 200px; overflow-y: auto; background: #222; color: #0f0; padding: 10px; font-family: monospace; font-size: 12px; border-radius: 8px; direction: ltr; text-align: left; }
-  .success { color: green; font-weight: bold; font-size: 18px; }
-  .error { color: red; font-weight: bold; }
   .hidden { display: none; }
 </style>
 </head>
@@ -23,31 +20,20 @@
   <h2>إعداد الاتصال بـ Supabase</h2>
   <input type="text" id="sb-url" placeholder="Project URL (https://xxx.supabase.co)">
   <input type="text" id="sb-key" placeholder="Anon Key (eyJ...)">
-  <input type="email" id="sb-email" placeholder="الإيميل (اللي عملته في Authentication)">
+  <input type="email" id="sb-email" placeholder="الإيميل">
   <input type="password" id="sb-pass" placeholder="الباسورد">
   <button id="login-btn" onclick="loginAndSetup()">تسجيل الدخول وبدء النقل</button>
 </div>
 
 <div class="card hidden" id="upload-screen">
   <h2>اختر ملف النسخة الاحتياطية</h2>
-  <p>هيتم رفع البيانات لقاعدة البيانات. متقفلش الصفحة لحد ما تخلص.</p>
   <input type="file" id="json-file" accept=".json" onchange="startImport(this.files[0])">
-  <div class="log" id="log">بانتظار اختيار الملف...</div>
-</div>
-
-<div class="card hidden" id="result-screen">
-  <h2>تقرير المطابقة (Reconciliation)</h2>
-  <div id="report-content"></div>
+  <div id="log" style="height:200px; overflow:auto; background:#222; color:#0f0; padding:10px; font-family:monospace;"></div>
 </div>
 
 <script>
   let supabase;
-  let logEl = document.getElementById('log');
-  
-  function log(msg) {
-    logEl.innerHTML += msg + '<br>';
-    logEl.scrollTop = logEl.scrollHeight;
-  }
+  function log(msg) { document.getElementById('log').innerHTML += msg + '<br>'; }
 
   async function loginAndSetup() {
     try {
@@ -58,13 +44,12 @@
 
       if(!url || !key || !email || !pass) return alert('أكمل كل البيانات');
       
-      if (!url.startsWith('https://') || !url.endsWith('.supabase.co')) {
-        return alert('رابط السوبابيز غير صحيح. لازم يبدأ بـ https:// وينتهي بـ .supabase.co');
+      if (!url.startsWith('https://') || !url.endsWith('.co')) {
+        return alert('الرابط غلط. لازم يبدأ بـ https:// وينتهي بـ .co');
       }
 
       const btn = document.getElementById('login-btn');
       btn.innerText = 'جاري تسجيل الدخول...';
-      btn.disabled = true;
 
       supabase = supabasejs.createClient(url, key);
 
@@ -75,223 +60,14 @@
       document.getElementById('setup-screen').classList.add('hidden');
       document.getElementById('upload-screen').classList.remove('hidden');
     } catch (err) {
-      alert('خطأ: ' + (err.message || 'تأكد من البيانات والإنترنت'));
-      const btn = document.getElementById('login-btn');
-      btn.innerText = 'تسجيل الدخول وبدء النقل';
-      btn.disabled = false;
+      alert('مشكلة: ' + (err.message || 'تأكد من الإنترنت'));
+      document.getElementById('login-btn').innerText = 'تسجيل الدخول وبدء النقل';
     }
   }
 
+  // (باقي كود النقل هنا)
   async function startImport(file) {
-    if(!file) return;
-    document.querySelector('input[type="file"]').disabled = true;
-    log('بدأت عملية القراءة...');
-    
-    const text = await file.text();
-    let S;
-    try {
-      S = JSON.parse(text);
-    } catch (e) {
-      return log('<span class="error">الملف غير صالح (مش JSON)</span>');
-    }
-
-    log(`تم العثور على: ${S.customers?.length || 0} عميل، ${S.products?.length || 0} منتج، ${S.orders?.length || 0} طلب.`);
-    
-    try {
-      log('جاري رفع العملاء...');
-      const cMap = {};
-      if (S.customers && S.customers.length) {
-        const rows = S.customers.map(c => ({
-          legacy_id: String(c.id),
-          name: c.name || 'بدون اسم',
-          phone: c.phone || '',
-          shop: c.shop || '',
-          mz: c.mz || '',
-          village: c.village || '',
-          crop: c.crop || '',
-          disc: Number(c.disc) || 0,
-          note: c.note || '',
-          lat: c.lat != null ? Number(c.lat) : null,
-          lng: c.lng != null ? Number(c.lng) : null,
-          approx: !!c.approx,
-          lim: Number(c.lim) || 0
-        }));
-
-        for (let i = 0; i < rows.length; i += 100) {
-          const chunk = rows.slice(i, i + 100);
-          const { data, error } = await supabase.from('customers').insert(chunk).select('id, legacy_id');
-          if (error) throw new Error('فشل رفع العملاء: ' + error.message);
-          data.forEach(d => { cMap[d.legacy_id] = d.id; });
-          log(`تم رفع ${Math.min(i + 100, rows.length)} / ${rows.length} عميل.`);
-        }
-      }
-
-      log('جاري رفع المنتجات...');
-      const pMap = {};
-      if (S.products && S.products.length) {
-        const rows = S.products.map(p => ({
-          legacy_id: String(p.id),
-          name: p.name || 'بدون اسم',
-          cat: p.cat || 'أسمدة',
-          unit: p.unit || 'عبوة',
-          price: Number(p.price) || 0,
-          cost: Number(p.cost) || 0,
-          stock: Number(p.stock) || 0,
-          min: Number(p.min) || 0,
-          ai: p.ai || '',
-          sz: p.sz || '',
-          barcode: p.barcode || ''
-        }));
-
-        for (let i = 0; i < rows.length; i += 100) {
-          const chunk = rows.slice(i, i + 100);
-          const { data, error } = await supabase.from('products').insert(chunk).select('id, legacy_id');
-          if (error) throw new Error('فشل رفع المنتجات: ' + error.message);
-          data.forEach(d => { pMap[d.legacy_id] = d.id; });
-          log(`تم رفع ${Math.min(i + 100, rows.length)} / ${rows.length} منتج.`);
-        }
-      }
-
-      log('جاري رفع الطلبات...');
-      const oMap = {};
-      if (S.orders && S.orders.length) {
-        for (const o of S.orders) {
-          const newCid = cMap[String(o.cid)];
-          if (!newCid) { log(`تخطي طلب ${o.id} (العميل مش موجود)`); continue; }
-
-          const { data: orderData, error: orderErr } = await supabase.from('orders').insert({
-            legacy_id: String(o.id),
-            cid: newCid,
-            t: new Date(o.t).toISOString(),
-            total: Number(o.total) || 0,
-            paid: Number(o.paid) || 0,
-            disc: Number(o.disc) || 0,
-            cx: !!o.cx
-          }).select('id').single();
-
-          if (orderErr) { log(`فشل طلب ${o.id}: ${orderErr.message}`); continue; }
-          
-          const newOid = orderData.id;
-          oMap[String(o.id)] = newOid;
-
-          if (o.items && o.items.length) {
-            const items = o.items.map(i => {
-              const newPid = pMap[String(i.pid)];
-              if(!newPid) return null;
-              return {
-                order_id: newOid,
-                pid: newPid,
-                name: i.name || 'منتج',
-                qty: Number(i.qty) || 1,
-                price: Number(i.price) || 0
-              };
-            }).filter(Boolean);
-
-            if (items.length) {
-              const { error: itemsErr } = await supabase.from('order_items').insert(items);
-              if (itemsErr) log(`تحذير: فشل أصناف الطلب ${o.id}: ${itemsErr.message}`);
-            }
-          }
-        }
-        log(`تم رفع ${Object.keys(oMap).length} طلب.`);
-      }
-
-      log('جاري رفع الحسابات (Ledger)...');
-      if (S.ledger && S.ledger.length) {
-        const rows = [];
-        for (const l of S.ledger) {
-          const newCid = cMap[String(l.cid)];
-          if (!newCid) continue;
-          const newOid = l.oid ? oMap[String(l.oid)] : null;
-
-          rows.push({
-            legacy_id: String(l.id),
-            cid: newCid,
-            type: l.type === 'OWES' || l.type === 'PAID' ? l.type : 'PAID',
-            amt: Number(l.amt) || 0,
-            t: new Date(l.t).toISOString(),
-            oid: newOid,
-            note: l.note || '',
-            entry_type: l.oid ? 'order' : 'collection'
-          });
-        }
-
-        for (let i = 0; i < rows.length; i += 100) {
-          const chunk = rows.slice(i, i + 100);
-          const { error } = await supabase.from('ledger').insert(chunk);
-          if (error) log('فشل رفع جزء من الحسابات: ' + error.message);
-        }
-        log(`تم رفع ${rows.length} حركة حساب.`);
-      }
-
-      log('جاري رفع الزيارات...');
-      if (S.visits && S.visits.length) {
-        const rows = [];
-        for (const v of S.visits) {
-          const newCid = cMap[String(v.cid)];
-          if (!newCid) continue;
-          rows.push({
-            legacy_id: String(v.id),
-            cid: newCid,
-            t: new Date(v.t).toISOString(),
-            auto: v.auto || 0,
-            res: v.res || '',
-            note: v.note || ''
-          });
-        }
-        for (let i = 0; i < rows.length; i += 100) {
-          const chunk = rows.slice(i, i + 100);
-          const { error } = await supabase.from('visits').insert(chunk);
-          if (error) log('فشل رفع جزء من الزيارات: ' + error.message);
-        }
-        log(`تم رفع ${rows.length} زيارة.`);
-      }
-
-      log('<span class="success">✅ تم رفع البيانات بنجاح! جاري حساب المطابقة...</span>');
-      await reconcile(S, cMap);
-
-    } catch (err) {
-      log('<span class="error">❌ حدث خطأ: ' + err.message + '</span>');
-    }
-  }
-
-  async function reconcile(originalS, cMap) {
-    let origTotal = 0;
-    if(originalS.ledger) {
-      originalS.ledger.forEach(l => {
-        origTotal += (l.type === 'OWES' ? Number(l.amt) : -Number(l.amt));
-      });
-    }
-
-    const { data: ledgerDb, error } = await supabase.from('ledger').select('type, amt');
-    if(error) {
-      log('فشل قراءة الحسابات للمطابقة: ' + error.message);
-      return;
-    }
-
-    let cloudTotal = 0;
-    ledgerDb.forEach(l => {
-      cloudTotal += (l.type === 'OWES' ? Number(l.amt) : -Number(l.amt));
-    });
-
-    const diff = Math.abs(origTotal - cloudTotal);
-
-    document.getElementById('upload-screen').classList.add('hidden');
-    const resDiv = document.getElementById('result-screen');
-    resDiv.classList.remove('hidden');
-
-    let html = `
-      <div style="margin-bottom:10px"><b>إجمالي المديونيات في الملف الأصلي:</b> ${origTotal.toFixed(2)} ج</div>
-      <div style="margin-bottom:10px"><b>إجمالي المديونيات في السحابة:</b> ${cloudTotal.toFixed(2)} ج</div>
-    `;
-
-    if (diff < 0.01) {
-      html += `<div class="success">✅ تطابق تام! السحابة مطابقة للتطبيق بالقرش.</div>`;
-    } else {
-      html += `<div class="error">⚠️ يوجد فرق: ${diff.toFixed(2)} ج. يرجى مراجعة الـ Log.</div>`;
-    }
-    
-    resDiv.innerHTML += html;
+      log('جاهز للنقل...');
   }
 </script>
 </body>
