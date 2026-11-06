@@ -1,0 +1,23 @@
+# Secrets and local environment
+.env
+.env.*
+!.env.example
+secrets/
+*.key
+*.pem
+
+# Backups contain real customer data — never commit
+backups/
+sales-backup-*.json
+fs_backup*.json
+*.enc.json
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Logs
+*.log
+npm-debug.log*
