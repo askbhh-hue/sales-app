@@ -2164,7 +2164,31 @@ function axHubIntent(q,n){const open=w=>{setTimeout(()=>{agClose();v={tab:'map',
 {const _agfCache=agSuggest;agSuggest=function(){if(AGF&&Date.now()-AGF.t<30000)return AGF.l;const l=_agfCache();AGF={t:Date.now(),l};return l}}
 {const _mornCache=axMorningHtml;axMorningHtml=function(dismiss){if(MORN&&MORN.d===day0()&&!dismiss)return MORN.h;const h=_mornCache(dismiss);if((S.morn||0)!==day0()||dismiss)MORN={d:day0(),h};return h}}
 const _renderSafe=render;
-render=function(){try{_renderSafe()}catch(err){console.error(err);const m=document.getElementById('main');if(m)m.innerHTML='<div class="card red">حصل خطأ غير متوقع: '+e(err&&err.message||err)+'<br>بياناتك محفوظة. جرّب تحديث الصفحة أو افتح سجل المساعد.</div>'}};
+render=function(){try{_renderSafe()}catch(err){console.error(err);const m=document.getElementById('main');if(m)m.innerHTML='<div class="card red">حصل خطأ غير متوقع: '+e(err&&err.message||err)+'<br>بياناتك محفوظة. جرّب تحديث الصفحة أو افتح سجل المساعد.</// استقبال الصورة من واتساب
+async function axCheckShared(){
+  if(!/shared=1/.test(location.search)) return;
+  try{
+    const db = await new Promise((ok,no)=>{
+      const r = indexedDB.open('fs-share',1);
+      r.onupgradeneeded = () => r.result.createObjectStore('files');
+      r.onsuccess = () => ok(r.result);
+      r.onerror = () => no(r.error);
+    });
+    const entry = await new Promise((ok,no)=>{
+      const tx = db.transaction('files','readonly');
+      const rq = tx.objectStore('files').get('latest');
+      rq.onsuccess = () => ok(rq.result);
+      rq.onerror = () => no(rq.error);
+    });
+    try{ const tx2 = db.transaction('files','readwrite'); tx2.objectStore('files').delete('latest') }catch(_){}
+    try{ history.replaceState({}, '', location.pathname) }catch(_){}
+    if(!entry || !entry.data) return;
+    if(String(entry.type||'').indexOf('image/') !== 0) return;
+    const file = new File([entry.data], entry.name || 'shared.jpg', { type: entry.type });
+    setTimeout(() => { if(typeof axChatImg === 'function') axChatImg(file) }, 1200);
+  }catch(e){ console.warn('axCheckShared failed', e) }
+}
+setTimeout(axCheckShared, 1500);
 try{render()}catch(_){try{polish()}catch(_){}}
 </script>
 </body>
