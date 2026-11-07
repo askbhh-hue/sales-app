@@ -230,6 +230,7 @@ body.agopen #ag{display:flex;flex-direction:column;max-height:88vh;max-height:88
 <script>
 const K='fs_v1',CATS=['أسمدة','مبيدات'],UNITS=['شيكارة','زجاجة','لتر','كيلو','علبة','كيس','عبوة'],MZ=['بني سويف','ناصر','إهناسيا','ببا','الفشن','سمسطا','الواسطى','الفيوم'];
 let S=null;try{S=JSON.parse(localStorage.getItem(K))}catch(_){}
+const FLAGS={useCloud:false,useServerAI:false,useVisionAPI:false};try{const _f=JSON.parse(localStorage.getItem('fs_flags')||'{}');Object.assign(FLAGS,_f)}catch(_){}window.FLAGS=FLAGS;console.log('FLAGS ready:',FLAGS);
 function fix(){S=S||{};['products','customers','orders','ledger','visits'].forEach(k=>S[k]=S[k]||[]);S.pin=S.pin||'';S.lb=S.lb||0;S.pv=S.pv||[];S.places=S.places||[];S.cyc=S.cyc||14;S.hide=S.hide||[];S.msgLog=S.msgLog||[];S.home=S.home||{n:'أطواب',mz:'الواسطى'};S.products.forEach(p=>{if(!CATS.includes(p.cat))p.cat='أسمدة'})}
 function migrate(){if(S.mig)return;S.orders.forEach(o=>{if(o.cx||!(o.paid>0))return;const l=S.ledger.find(x=>x.oid===o.id&&x.type==='OWES');if(l){if(Math.abs(l.amt-(o.total-o.paid))<0.01)l.amt=o.total}else S.ledger.push({id:uid(),cid:o.cid,type:'OWES',amt:o.total,t:o.t,oid:o.id,note:'طلب'})});S.mig=1;save()}
 fix();
