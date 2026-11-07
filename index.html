@@ -3569,6 +3569,150 @@ setTimeout(axCheckShared,1500);
 
 console.log('✅ Image sharing + Web Share Target loaded');
 /* ============================================================ */
+  /* ============================================================
+   MULTI-COMMAND OFFLINE + EXTENDED SANITY
+   ============================================================ */
+
+// ---- 1) Safe split of compound Arabic commands ----
+function axSplitMulti(q){
+  q = String(q||'').trim();
+  if(!q) return [];
+  
+  // Level 1: explicit step markers
+  const stepSplit = /\s+(?:ثم|وبعدين|وبعد\s*كده|وبعدها)\s+/i;
+  if(stepSplit.test(q)){
+    return q.split(stepSplit).map(s=>s.trim()).filter(Boolean);
+  }
+  
+  // Level 2: second verb (preceded by "و" or "ثم")
+  const verbs = 'حصل|حصّل|حصلت|سجل|سجّل|اتزار|فاتورة|أوردر|اوردر|طلبيه|بعت|بيع|ضيف|اضف|أضف|غير|عدل|حدّث|حدث|امسح|احذف|زود|وصل|بعت|ابعت|ابعث|روح|افتح|خلي|اعمل|سلم|حول';
+  const re = new RegExp('\\s+(?:و|ثم)?(' + verbs + ')\\b', 'g');
+  const marks = [];
+  let m;
+  while((m = re.exec(q))) marks.push(m.index + 1);
+  if(marks.length < 2) return [q];
+  
+  const parts = [];
+  for(let i = 0; i < marks.length; i++){
+    const start = i === 0 ? 0 : marks[i];
+    const end = i+1 < marks.length ? marks[i+1] : q.length;
+    parts.push(q.slice(start, end).trim());
+  }
+  return parts.filter(Boolean);
+}
+
+// ---- 2) Override aiAsk: compound commands offline ----
+{
+  const _aiAsk0 = aiAsk;
+  aiAsk = async function(t){
+    t = String(t==null?'':t).trim();
+    if(!t) return;
+    
+    const key = aiKey();
+    const cloud = !!(key && S.aiOk && navigator.onLine !== false);
+    const verbCount = (t.match(/(حصل|حصّل|سجل|سجّل|ابعت|افتح|بعت|ضيف|غير|امسح|زود|وصل|وريني|روح|خلي|اعمل)/g)||[]).length;
+    const hasSteps = /(ثم|وبعدين|وبعد\s*كده|وبعدها)/.test(t);
+    const multi = verbCount >= 2 || hasSteps;
+    
+    // Cloud path unchanged
+    if(cloud && (S.agAlways || multi)) return axAgent(t, key);
+    
+    // Offline compound path
+    if(multi && !cloud){
+      const parts = axSplitMulti(t);
+      if(parts.length > 1){
+        aiMsgs.push({me:1, h:e(t)});
+        aiMsgs.push({bot:1, h:'<div class="mu">⚡ محلي: قسمتها لـ '+parts.length+' خطوات</div>'});
+        let okCount = 0;
+        for(let i = 0; i < parts.length; i++){
+          const part = parts[i];
+          try {
+            const res = aiLocal(part);
+            if(res != null){
+              okCount++;
+              aiMsgs.push({bot:1, h:'<div class="mu" style="margin-top:6px">خطوة '+(i+1)+' من '+parts.length+':</div>'+res});
+            } else {
+              aiMsgs.push({bot:1, h:'<div class="axc mid"><div class="mu">خطوة '+(i+1)+' — مفهمتهاش: '+e(part)+'</div></div>'});
+            }
+          } catch(err){
+            aiMsgs.push({bot:1, h:'<div class="axc"><div class="mu">خطوة '+(i+1)+' — مشكلة: '+e(part)+'</div></div>'});
+          }
+        }
+        if(okCount > 0 && okCount < parts.length){
+          aiMsgs.push({bot:1, h:'<div class="mu">'+okCount+' من '+parts.length+' تمام. الباقي اكتبه لوحده.</div>'});
+        }
+        return aiRender();
+      }
+    }
+    
+    return _aiAsk0.call(this, t);
+  };
+}
+
+// ---- 3) Extend sanity to actions added after Phase 4 ----
+try {
+  ['priceUpdate','purchase','returnItems','addExpense','addPromise','addBatch','stockCount'].forEach(k => {
+    const ax0 = AXA[k];
+    if(!ax0 || typeof ax0.D !== 'function' || ax0._sanity) return;
+    const _D = ax0.D;
+    ax0.D = function(p){
+      const d = _D(p);
+      try {
+        if(d && d.err === undefined){
+          const W = axSanity(k, p);
+          if(W.length){
+            const extra = W.join('<br>');
+            d.warn = d.warn ? (d.warn + '<br>' + extra) : extra;
+          }
+        }
+      } catch(_){}
+      return d;
+    };
+    ax0._sanity = true;
+  });
+} catch(e){ console.warn('sanity wrap extra failed', e); }
+
+// ---- 4) Extended axSanity for new actions ----
+{
+  const _san0 = axSanity;
+  axSanity = function(type, p){
+    const W = _san0(type, p);
+    try {
+      if(type === 'returnItems' && p && p.items){
+        p.items.forEach(it => {
+          const q = P(it.pid);
+          if(!q){ W.push('⚠ منتج مش موجود في المرتجع'); return; }
+          if(it.price > 0 && q.price > 0 && it.price / q.price > 1.5)
+            W.push('⚠ سعر المرتجع ('+axMoney(it.price)+') أعلى من المسجّل ('+axMoney(q.price)+')');
+          if(it.qty > 0 && q.stock >= 0 && it.qty > q.stock * 2)
+            W.push('⚠ كمية المرتجع ('+it.qty+') أكبر من المعتاد');
+        });
+      }
+      if(type === 'addPromise' && p && p.cid){
+        const b = bal(p.cid);
+        if(b > 0 && p.amt > 0 && p.amt > b * 2)
+          W.push('⚠ الوعد ('+axMoney(p.amt)+') أكبر من ضعف المديونية');
+      }
+      if(type === 'addExpense' && p && p.amt > 5000)
+        W.push('⚠ مصروف كبير ('+axMoney(p.amt)+') — راجع المبلغ');
+      if(type === 'priceUpdate' && p && p.rows){
+        const bad = p.rows.filter(r => r.pid && P(r.pid) && r.price != null && P(r.pid).cost > 0 && r.price < P(r.pid).cost);
+        if(bad.length) W.push('⚠ '+bad.length+' صنف سعر البيع أقل من التكلفة');
+      }
+      if(type === 'addBatch' && p && p.exp){
+        const days = (new Date(p.exp+'T23:59:59') - Date.now()) / 864e5;
+        if(days < 0) W.push('⚠ تاريخ الصلاحية في الماضي');
+        if(days >= 0 && days < 30) W.push('⚠ الصلاحية قريبة ('+Math.round(days)+' يوم)');
+      }
+    } catch(_){}
+    return W;
+  };
+}
+
+// ---- 5) Small helper: pending cards count ----
+window.axPending = function(){ try{ return Object.values(AXQ).filter(c=>c.st==='pending').length }catch(_){ return 0 } };
+
+console.log('✅ Multi-command offline + extended sanity loaded');
 try{render()}catch(_){try{polish()}catch(_){}}
 </script>
 </body>
