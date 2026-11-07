@@ -2188,6 +2188,87 @@ async function axCheckShared(){
     setTimeout(() => { if(typeof axChatImg === 'function') axChatImg(file) }, 1200);
   }catch(e){ console.warn('axCheckShared failed', e) }
 }
+                                            // بعت الصور بنص مخصص للعميل
+try{
+  const _imgShare0 = imgShare;
+  imgShare = async function(keys, cid, customText){
+    const files = keys.map(k => IMGF[k]).filter(Boolean);
+    if(files.length < keys.length){
+      imgPreload();
+      return toast('الصور بتتحمّل، جرّب كمان ثانية (محتاج نت أول مرة)');
+    }
+    const c = cid && C(cid);
+    const text = (customText !== undefined && customText !== null) ? String(customText) : (c ? 'السلام عليكم يا ' + c.name + ' 🌾' : '');
+    if(navigator.share && navigator.canShare){
+      if(text && navigator.canShare({ files, text })){
+        try{ await navigator.share({ files, text }); return; }catch(err){ if(err && err.name === 'AbortError') return; }
+      }
+      if(navigator.canShare({ files })){
+        try{ await navigator.share({ files }); return; }catch(err){ if(err && err.name === 'AbortError') return; }
+      }
+    }
+    if(typeof imgFallback === 'function') imgFallback(keys); else toast('المشاركة مش مدعومة');
+  };
+}catch(e){}
+
+try{
+  if(typeof AXA !== 'undefined'){
+    AXA.sendImgs = {
+      D: p => {
+        const c = C(p.cid); if(!c) return { ic:'🖼', risk:'low', t:'إرسال صور', lines:[], f:[] };
+        const L = { p1:'أسعار المبيدات', p2:'أسعار الأسمدة', c1:'كتالوج الأسمدة', c2:'كتالوج المبيدات', t1:'شرائح الخصم' };
+        const lines = p.keys.map(k => '📎 ' + (L[k] || k));
+        if(p.text) lines.push('<div class="msgp">' + e(p.text) + '</div>');
+        return { ic: '🖼', risk: 'low', t: 'إرسال صور لـ ' + e(c.name), lines, f: [{ k:'text', l:'النص المرفق' }] };
+      },
+      A: p => { const c = C(p.cid); if(!c) return { err:'العميل مش موجود' }; try{ imgShare(p.keys, c.id, p.text); }catch(_){ return { err:'فشلت المشاركة' }; } return {}; },
+      U: null
+    };
+  }
+}catch(e){}
+
+// بعت الصورة الممسوحة
+window._axLastB64 = null;
+try{
+  const _axShrink0 = axShrink;
+  axShrink = async function(f){ const b64 = await _axShrink0(f); window._axLastB64 = b64; return b64; };
+}catch(e){}
+
+function b64ToFile(b64, name, type){
+  const bin = atob(b64); const u8 = new Uint8Array(bin.length);
+  for(let i=0;i<bin.length;i++) u8[i] = bin.charCodeAt(i);
+  return new File([u8], name || 'image.jpg', { type: type || 'image/jpeg' });
+}
+
+async function axShareScannedImg(){
+  if(!window._axLastB64) return toast('مفيش صورة متاحة');
+  const cs = (typeof axCust === 'function') ? axCust(anorm(prompt('لأي عميل؟ اكتب اسمه:') || '')) : [];
+  if(cs.length !== 1) return toast(cs.length ? 'في أكتر من عميل — اكتب الاسم كامل' : 'مش لاقي العميل');
+  const c = cs[0];
+  const userText = prompt('النص المرفق (تقدر تعدّله):', 'السلام عليكم يا ' + c.name + ' 🌾');
+  if(userText === null) return;
+  const file = b64ToFile(window._axLastB64, 'scan.jpg', 'image/jpeg');
+  try{
+    if(navigator.share && navigator.canShare && navigator.canShare({ files:[file], text:userText })){ await navigator.share({ files:[file], text:userText }); return; }
+    if(navigator.share && navigator.canShare && navigator.canShare({ files:[file] })){ await navigator.share({ files:[file] }); return; }
+  }catch(err){ if(err && err.name === 'AbortError') return; }
+  try{
+    const a = document.createElement('a'); a.href = URL.createObjectURL(file); a.download = file.name;
+    document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href), 2000);
+    toast('اتنزّلت الصورة. افتح واتساب وابعت');
+  }catch(_){ toast('مقدرتش أشارك الصورة'); }
+}
+
+// زرار بعت الصورة في كارت المراجعة
+try{
+  const _axImgReview0 = axImgReview;
+  axImgReview = function(SC_){
+    let html = _axImgReview0(SC_);
+    if(!html || html.indexOf('📤 ابعت الصورة دي') >= 0) return html;
+    const btn = `<div style="margin-top:10px"><button class="btn t sm" onclick="axShareScannedImg()">📤 ابعت الصورة دي</button></div>`;
+    return html.replace(/<\/div>\s*$/, btn + '</div>');
+  };
+}catch(e){}   
 setTimeout(axCheckShared, 1500);
 try{render()}catch(_){try{polish()}catch(_){}}
 </script>
