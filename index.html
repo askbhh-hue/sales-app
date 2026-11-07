@@ -3728,6 +3728,107 @@ try {
 window.axPending = function(){ try{ return Object.values(AXQ).filter(c=>c.st==='pending').length }catch(_){ return 0 } };
 
 console.log('✅ Multi-command offline + extended sanity loaded');
+  /* --- TEMP MIGRATION BUTTON --- */
+(function(){
+  const btn = document.createElement('button');
+  btn.innerHTML = '☁️ نقل البيانات للسحابة';
+  btn.style.cssText = 'position:fixed; top:10px; left:10px; z-index:99999; background:#2563eb; color:white; border:0; padding:15px; border-radius:15px; font-weight:bold; font-size:16px; box-shadow:0 4px 12px rgba(0,0,0,0.3); cursor:pointer;';
+  btn.onclick = async function() {
+    if(!confirm('هيتم نقل كل البيانات للسحابة. متقفلش الشاشة لحد ما تخلص. تبدأ؟')) return;
+    const originalText = btn.innerHTML;
+    btn.innerHTML = '⏳ جاري النقل...';
+    btn.style.background = '#ca8a04';
+    btn.disabled = true;
+    
+    const url = CLOUD.url + '/rest/v1/';
+    const headers = {
+      'apikey': CLOUD.anonKey,
+      'Authorization': 'Bearer ' + CLOUD.anonKey,
+      'Content-Type': 'application/json',
+      'Prefer': 'return=minimal'
+    };
+    
+    try {
+      // 1. Customers
+      if(S.customers && S.customers.length) {
+        const cData = S.customers.map(c => ({
+          legacy_id: c.id, name: c.name, phone: c.phone, shop: c.shop, 
+          village: c.village, district: c.mz, crop: c.crop, note: c.note, discount: c.disc || 0
+        }));
+        let r = await fetch(url + 'customers', { method: 'POST', headers, body: JSON.stringify(cData) });
+        if(!r.ok) throw new Error('خطأ في العملاء: ' + (await r.text()));
+      }
+      
+      // 2. Products
+      if(S.products && S.products.length) {
+        const pData = S.products.map(p => ({
+          legacy_id: p.id, name: p.name, category: p.cat, unit: p.unit,
+          price: p.price || 0, cost: p.cost || 0, stock: p.stock || 0, 
+          min_stock: p.min || 0, active_ingredient: p.ai, pack_size: p.sz
+        }));
+        let r = await fetch(url + 'products', { method: 'POST', headers, body: JSON.stringify(pData) });
+        if(!r.ok) throw new Error('خطأ في المنتجات: ' + (await r.text()));
+      }
+      
+      // Helper to get new ID
+      const getNewId = async (legacy_id) => {
+        const r = await fetch(url + 'customers?legacy_id=eq.' + legacy_id + '&select=id', { headers });
+        const d = await r.json();
+        return d.length ? d[0].id : null;
+      };
+
+      // 3. Orders
+      if(S.orders && S.orders.length) {
+        for(let o of S.orders) {
+          const newCid = await getNewId(o.cid);
+          if(!newCid) continue;
+          
+          const oPayload = [{
+            legacy_id: o.id, customer_id: newCid, total: o.total, 
+            discount: o.disc || 0, paid: o.paid, is_cancelled: !!o.cx,
+            created_at: new Date(o.t).toISOString()
+          }];
+          let oRes = await fetch(url + 'orders', { method: 'POST', headers: {...headers, 'Prefer': 'return=representation'}, body: JSON.stringify(oPayload) });
+          if(!oRes.ok) continue;
+          let oData = await oRes.json();
+          if(!oData.length) continue;
+          
+          const newOid = oData[0].id;
+          const items = o.items.map(i => ({
+            order_id: newOid, product_name: i.name, qty: i.qty, price: i.price
+          }));
+          await fetch(url + 'order_items', { method: 'POST', headers, body: JSON.stringify(items) });
+        }
+      }
+      
+      // 4. Ledger
+      if(S.ledger && S.ledger.length) {
+        for(let l of S.ledger) {
+          const newCid = await getNewId(l.cid);
+          if(!newCid) continue;
+          
+          const lPayload = [{
+            legacy_id: l.id, customer_id: newCid, 
+            type: l.type, amount: l.amt, note: l.note,
+            created_at: new Date(l.t).toISOString()
+          }];
+          await fetch(url + 'ledger', { method: 'POST', headers, body: JSON.stringify(lPayload) });
+        }
+      }
+      
+      btn.innerHTML = '✅ تم النقل بنجاح!';
+      btn.style.background = '#16a34a';
+      alert('تم نقل كل البيانات للسحابة بنجاح! تقدر تمسح الزرار ده من الكود دلوقتي وتعمل Commit.');
+      
+    } catch(err) {
+      console.error(err);
+      btn.innerHTML = '❌ فشل النقل';
+      btn.style.background = '#dc2626';
+      alert('حصلت مشكلة: ' + err.message + '\n\nاتأكد إن الخطوة الأولى (فتح الباب) اتنفذت صح.');
+    }
+  };
+  document.body.appendChild(btn);
+})();
 try{render()}catch(_){try{polish()}catch(_){}}
 </script>
 </body>
