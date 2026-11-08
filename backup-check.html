@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>فحص النسخة الاحتياطية</title>
+<style>
+:root{--bg:#f6f7f4;--fg:#1d2a1f;--card:#fff;--ok:#1f6f3a;--bad:#b42318;--warn:#8a5a00;--mu:#5d6b60;--br:#d9ded6}
+@media(prefers-color-scheme:dark){:root{--bg:#121613;--fg:#e8ede9;--card:#1b211c;--ok:#5ccf86;--bad:#ff8a7a;--warn:#f0c060;--mu:#9aa89d;--br:#2c352d}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.8 Cairo,Tahoma,sans-serif;padding:16px;max-width:720px;margin-inline:auto}
+h1{font-size:20px;margin:8px 0 4px}
+.card{background:var(--card);border:1px solid var(--br);border-radius:12px;padding:14px;margin:12px 0}
+button{font:inherit;width:100%;padding:12px;margin:6px 0;border-radius:10px;border:0;background:#1f4d2e;color:#fff;cursor:pointer}
+button.sec{background:transparent;color:var(--fg);border:1px solid var(--br)}
+button.dg{background:var(--bad)}
+table{width:100%;border-collapse:collapse}
+td{padding:4px 0;border-bottom:1px solid var(--br)}
+td:last-child{text-align:left;font-variant-numeric:tabular-nums}
+.ok{color:var(--ok)}.bad{color:var(--bad)}.warn{color:var(--warn)}.mu{color:var(--mu);font-size:14px}
+pre{white-space:pre-wrap;word-break:break-word;font-size:13px}
+</style>
+</head>
+<body>
+<h1>🛡️ فحص ونسخ بيانات التطبيق</h1>
+<div class="mu">الصفحة دي بتقرا بيانات التطبيق من الموبايل ده بس، ومبتبعتش حاجة لأي مكان. ومبتلمسش مفاتيح الذكاء الاصطناعي نهائيًا.</div>
+
+<div class="card" id="live">جاري القراءة…</div>
+
+<div class="card">
+  <button id="bDown">⬇️ نزّل نسخة احتياطية كاملة</button>
+  <button id="bVer" class="sec">✅ تحقق من ملف نسخة نزّلتها</button>
+  <input type="file" id="fVer" accept=".json,application/json" hidden>
+  <div id="out"></div>
+</div>
+
+<div class="card">
+  <b>استرجاع (للطوارئ فقط)</b>
+  <div class="mu">بيرجّع بيانات التطبيق لحالة ملف نسخة احتياطية. بياخد نسخة من الحالية الأول.</div>
+  <button id="bRes" class="sec dg">♻️ استرجع من ملف</button>
+  <input type="file" id="fRes" accept=".json,application/json" hidden>
+</div>
+
+<script>
+'use strict';
+const KEY = 'fs_v1';
+const $ = id => document.getElementById(id);
+const r2 = n => Math.round(n * 100) / 100;
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+// ---- read the app data exactly as stored (string), localStorage first, IndexedDB mirror as fallback
+function idbRead() {
+  return new Promise(res => {
+    try {
+      const q = indexedDB.open('fs_main', 1);
+      q.onupgradeneeded = () => { q.transaction.abort(); res(null); };
+      q.onerror = () => res(null);
+      q.onsuccess = () => {
+        try {
+          const g = q.result.transaction('kv').objectStore('kv').get('S');
+          g.onsuccess = () => res(g.result && g.result.d ? { raw: g.result.d, ts: g.result.ts } : null);
+          g.onerror = () => res(null);
+        } catch (_) { res(null); }
+      };
+    } catch (_) { res(null); }
+  });
+}
+async function readRaw() {
+  let raw = null, src = '';
+  try { raw = localStorage.getItem(KEY); if (raw) src = 'localStorage'; } catch (_) {}
+  if (!raw) { const m = await idbRead(); if (m) { raw = m.raw; src = 'IndexedDB'; } }
+  return { raw, src };
+}
+
+// ---- stats + per-customer balance baseline (same formula as the app: SUM(OWES) - SUM(PAID))
+function analyze(S) {
+  const A = k => Array.isArray(S[k]) ? S[k] : [];
+  const customers = A('customers'), products = A('products'), orders = A('orders'), ledger = A('ledger');
+  const counts = {
+    customers: customers.length, products: products.length,
+    orders: orders.length, orders_cancelled: orders.filter(o => o.cx).length,
+    ledger: ledger.length, visits: A('visits').length,
+    village_visits: A('pv').length, places: A('places').length,
+    expenses: A('exp').length, promises: A('prom').length, returns: A('returns').length,
+    batches: products.reduce((s, p) => s + (Array.isArray(p.batches) ? p.batches.length : 0), 0),
+    ai_log: A('axLog').length, ai_memory: A('axMem').length
+  };
+  const bal = new Map();
+  ledger.forEach(l => bal.set(l.cid, (bal.get(l.cid) || 0) + (l.type === 'OWES' ? +l.amt : -l.amt)));
+  const baseline = customers.map(c => ({ id: c.id, name: c.name, balance: r2(bal.get(c.id) || 0) }));
+  const custIds = new Set(customers.map(c => c.id));
+  const issues = [];
+  const orphanLedger = ledger.filter(l => !custIds.has(l.cid)).length;
+  if (orphanLedger) issues.push(['حركات حساب لعملاء مش موجودين', orphanLedger]);
+  const orphanOrders = orders.filter(o => !custIds.has(o.cid)).length;
+  if (orphanOrders) issues.push(['طلبات لعملاء مش موجودين', orphanOrders]);
+  const badType = ledger.filter(l => l.type !== 'OWES' && l.type !== 'PAID').length;
+  if (badType) issues.push(['حركات حساب نوعها غريب', badType]);
+  const badNum = ledger.filter(l => !isFinite(+l.amt)).length + orders.filter(o => !isFinite(+o.total)).length;
+  if (badNum) issues.push(['مبالغ مش أرقام', badNum]);
+  let mismatch = 0;
+  orders.filter(o => !o.cx).forEach(o => {
+    const rows = ledger.filter(l => l.oid === o.id);
+    const owes = rows.filter(l => l.type === 'OWES').reduce((s, l) => s + +l.amt, 0);
+    const paid = rows.filter(l => l.type === 'PAID').reduce((s, l) => s + +l.amt, 0);
+    if (Math.abs(owes - (o.total || 0)) > 0.01 || Math.abs(paid - (o.paid || 0)) > 0.01) mismatch++;
+  });
+  if (mismatch) issues.push(['طلبات إجماليها/مدفوعها مش مطابق لدفتر الحساب (هتتراجع في المرحلة 1)', mismatch]);
+  const seen = new Set(); let dup = 0;
+  [customers, products, orders, ledger].forEach(arr => arr.forEach(r => { const k = r.id; if (seen.has(k)) dup++; seen.add(k); }));
+  if (dup) issues.push(['IDs متكررة', dup]);
+  const owed = baseline.reduce((s, b) => s + Math.max(b.balance, 0), 0);
+  return { counts, baseline, issues, totals: { owed: r2(owed), custCredit: r2(baseline.reduce((s, b) => s + Math.min(b.balance, 0), 0)) } };
+}
+
+async function sha256(str) {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+  return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
+}
+const fmt = n => n.toLocaleString('en-US');
+const ctable = c => '<table>' + Object.entries(c).map(([k, v]) => `<tr><td>${k}</td><td>${fmt(v)}</td></tr>`).join('') + '</table>';
+
+let LIVE = null;
+async function showLive() {
+  const { raw, src } = await readRaw();
+  if (!raw) { $('live').innerHTML = '<b class="bad">مفيش بيانات على الموبايل ده.</b><div class="mu">لازم تفتح الصفحة من نفس الموقع اللي بتفتح منه التطبيق، وبنفس المتصفح.</div>'; return; }
+  let S; try { S = JSON.parse(raw); } catch (e) { $('live').innerHTML = '<b class="bad">البيانات تالفة: ' + esc(e.message) + '</b>'; return; }
+  const a = analyze(S), hash = await sha256(raw);
+  LIVE = { raw, S, a, hash, src };
+  $('live').innerHTML = `<b class="ok">✔ البيانات اتقرت من ${src}</b>
+    <div class="mu">حجمها ${fmt(Math.round(raw.length / 1024))} KB • بصمة: ${hash.slice(0, 12)}</div>
+    ${ctable(a.counts)}
+    <div style="margin-top:8px">إجمالي المديونيات: <b>${fmt(a.totals.owed)} ج</b></div>
+    ${a.issues.length ? '<div class="warn"><b>ملاحظات (مش هتمنع النسخة):</b>' + a.issues.map(i => `<div>• ${i[0]}: ${i[1]}</div>`).join('') + '</div>' : '<div class="ok">مفيش أي تناقضات في الحسابات ✔</div>'}`;
+}
+
+function download(name, text) {
+  const url = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
+  const a = document.createElement('a'); a.href = url; a.download = name; document.body.appendChild(a); a.click();
+  setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 2000);
+}
+const stamp = () => { const d = new Date(), p = n => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}`; };
+
+$('bDown').onclick = async () => {
+  if (!LIVE) return;
+  const file = {
+    meta: { format: 'fs-backup-v1', created: new Date().toISOString(), source: LIVE.src, sha256: LIVE.hash, counts: LIVE.a.counts, totals: LIVE.a.totals, issues: LIVE.a.issues },
+    baseline: LIVE.a.baseline,   // per-customer balances: used by the Phase 1 reconciliation report
+    raw: LIVE.raw                // exact original string, byte for byte
+  };
+  const name = `fs_backup_${stamp()}.json`;
+  download(name, JSON.stringify(file));
+  $('out').innerHTML = `<div class="ok">✔ اتنزّل الملف <b>${name}</b>. دلوقتي اضغط «تحقق من ملف نسخة نزّلتها» واختاره.</div>`;
+};
+
+$('bVer').onclick = () => $('fVer').click();
+$('fVer').onchange = async ev => {
+  const f = ev.target.files[0]; ev.target.value = ''; if (!f) return;
+  const rows = [];
+  const add = (ok, t) => rows.push(`<div class="${ok ? 'ok' : 'bad'}">${ok ? '✔' : '✘'} ${t}</div>`);
+  try {
+    const j = JSON.parse(await f.text());
+    add(j.meta && j.meta.format === 'fs-backup-v1' && typeof j.raw === 'string', 'شكل الملف سليم');
+    const h = await sha256(j.raw); add(h === j.meta.sha256, 'البصمة مطابقة (الملف مش تالف ولا اتعدّل)');
+    const S = JSON.parse(j.raw), a = analyze(S);
+    add(JSON.stringify(a.counts) === JSON.stringify(j.meta.counts), 'عدد السجلات داخل الملف مطابق للمسجّل');
+    add(a.baseline.length === j.baseline.length && a.baseline.every((b, i) => b.id === j.baseline[i].id && Math.abs(b.balance - j.baseline[i].balance) < 0.01), 'أرصدة العملاء في الملف مطابقة');
+    if (LIVE) {
+      const same = LIVE.hash === h;
+      rows.push(`<div class="${same ? 'ok' : 'warn'}">${same ? '✔ الملف مطابق تمامًا للبيانات الحالية' : '⚠ في تغييرات اتعملت على التطبيق بعد النسخة دي (طبيعي لو سجّلت حاجة بعدها). لو هتبدأ الترحيل نزّل نسخة جديدة.'}</div>`);
+    }
+    const allOk = !rows.some(r => r.includes('class="bad"'));
+    rows.push(`<b class="${allOk ? 'ok' : 'bad'}">${allOk ? 'النسخة سليمة ✔ احفظها في أكتر من مكان' : 'النسخة فيها مشكلة، نزّل واحدة جديدة وماتكملش'}</b>`);
+  } catch (e) { add(false, 'الملف مش مقروء: ' + esc(e.message)); }
+  $('out').innerHTML = rows.join('');
+};
+
+$('bRes').onclick = () => $('fRes').click();
+$('fRes').onchange = async ev => {
+  const f = ev.target.files[0]; ev.target.value = ''; if (!f) return;
+  try {
+    const j = JSON.parse(await f.text());
+    if (!j.meta || j.meta.format !== 'fs-backup-v1' || typeof j.raw !== 'string' || (await sha256(j.raw)) !== j.meta.sha256) throw new Error('الملف مش نسخة سليمة');
+    JSON.parse(j.raw);
+    if (!confirm('هترجّع بيانات التطبيق لنسخة ' + j.meta.created + '؟ أي حاجة اتسجلت بعدها هتضيع.')) return;
+    if (!confirm('تأكيد أخير. هننزّل نسخة من الحالي الأول.')) return;
+    if (LIVE) download(`fs_before_restore_${stamp()}.json`, JSON.stringify({ meta: { format: 'fs-backup-v1', created: new Date().toISOString(), source: LIVE.src, sha256: LIVE.hash, counts: LIVE.a.counts, totals: LIVE.a.totals, issues: LIVE.a.issues }, baseline: LIVE.a.baseline, raw: LIVE.raw }));
+    localStorage.setItem(KEY, j.raw);
+    localStorage.setItem('fs_ts', String(Date.now()));
+    $('out').innerHTML = '<b class="ok">✔ اتسترجعت. افتح التطبيق وراجع.</b><div class="mu">اقفل التطبيق خالص وافتحه تاني عشان يقرا النسخة المسترجعة.</div>';
+    await showLive();
+  } catch (e) { $('out').innerHTML = '<b class="bad">فشل: ' + esc(e.message) + '</b>'; }
+};
+
+showLive();
+</script>
+</body>
+</html>
