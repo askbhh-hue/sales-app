@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>نقل البيانات للسحابة</title>
+<style>
+:root{--bg:#f6f7f4;--fg:#1d2a1f;--card:#fff;--ok:#1f6f3a;--bad:#b42318;--warn:#8a5a00;--mu:#5d6b60;--br:#d9ded6;--pri:#1f4d2e}
+@media(prefers-color-scheme:dark){:root{--bg:#121613;--fg:#e8ede9;--card:#1b211c;--ok:#5ccf86;--bad:#ff8a7a;--warn:#f0c060;--mu:#9aa89d;--br:#2c352d;--pri:#2f7a47}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.8 Cairo,Tahoma,sans-serif;padding:16px;max-width:720px;margin-inline:auto}
+h1{font-size:20px;margin:8px 0 4px}
+.card{background:var(--card);border:1px solid var(--br);border-radius:12px;padding:14px;margin:12px 0}
+.card.off{opacity:.45;pointer-events:none}
+h2{font-size:17px;margin:0 0 6px}
+input{width:100%;font:inherit;padding:11px;margin:5px 0;border-radius:10px;border:1px solid var(--br);background:var(--bg);color:var(--fg)}
+button{font:inherit;width:100%;padding:12px;margin:6px 0;border-radius:10px;border:0;background:var(--pri);color:#fff;cursor:pointer}
+button.sec{background:transparent;color:var(--fg);border:1px solid var(--br)}
+button:disabled{opacity:.5}
+table{width:100%;border-collapse:collapse;font-size:15px}
+td,th{padding:4px 2px;border-bottom:1px solid var(--br);text-align:right}
+td.n,th.n{text-align:left;font-variant-numeric:tabular-nums}
+.ok{color:var(--ok)}.bad{color:var(--bad)}.warn{color:var(--warn)}.mu{color:var(--mu);font-size:14px}
+.bar{height:10px;background:var(--br);border-radius:6px;overflow:hidden;margin:8px 0}.bar>i{display:block;height:100%;width:0;background:var(--pri);transition:width .2s}
+pre{white-space:pre-wrap;word-break:break-word;font-size:13px}
+</style>
+</head>
+<body>
+<h1>☁️ نقل البيانات للسحابة</h1>
+<div class="mu">الأداة دي بتنقل نسخة من بياناتك لـ Supabase. التطبيق القديم مش بيتغيّر ولا بيتمسح منه أي حاجة. تقدر تعيد النقل أكتر من مرة بأمان (مفيش تكرار).</div>
+
+<div class="card" id="s1">
+  <h2>1) تسجيل الدخول</h2>
+  <input id="em" type="email" inputmode="email" autocomplete="username" placeholder="الإيميل" dir="ltr">
+  <input id="pw" type="password" autocomplete="current-password" placeholder="الباسورد" dir="ltr">
+  <button id="bLogin">دخول</button>
+  <div id="o1"></div>
+</div>
+
+<div class="card off" id="s2">
+  <h2>2) اختار ملف النسخة الاحتياطية</h2>
+  <div class="mu">الملف اللي نزّلته من التطبيق (المزيد ← الإعدادات والنسخ ← تنزيل نسخة احتياطية).</div>
+  <button id="bPick" class="sec">📂 اختار الملف</button>
+  <input type="file" id="fPick" accept=".json,application/json,text/plain" hidden>
+  <div id="o2"></div>
+</div>
+
+<div class="card off" id="s3">
+  <h2>3) نقل البيانات</h2>
+  <button id="bRun">⬆️ ابدأ النقل</button>
+  <div class="bar"><i id="pb"></i></div>
+  <div id="o3" class="mu"></div>
+</div>
+
+<div class="card off" id="s4">
+  <h2>4) مطابقة الأرقام</h2>
+  <button id="bRec">🔍 قارن الأرقام</button>
+  <div id="o4"></div>
+  <button id="bRep" class="sec" hidden>⬇️ نزّل تقرير المطابقة</button>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script>
+'use strict';
+// Public values (safe to be here: the anon key only works through Row Level Security).
+const SB_URL = 'https://hioringmhouagmmtvdcp.supabase.co';
+const SB_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imhpb3JpbmdtaG91YWdtbXR2ZGNwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTM5ODM3MjQsImV4cCI6MjEwOTU1OTcyNH0.Zv9sSxuVSgvjnjP7DtPplfAvMeg3W9IiBY_WnDSsunQ';
+
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const on = (id, v) => $(id).classList.toggle('off', !v);
+const r2 = n => Math.round(n * 100) / 100;
+const fmt = n => Number(n).toLocaleString('en-US');
+let sb = null, S = null, REPORT = null;
+
+// ---------- rules (must match 003_import.sql; verified against the SQL tests) ----------
+const A = x => Array.isArray(x) ? x : [];
+const num = v => { if (v === null || v === undefined || v === '') return null; const n = Number(v); return Number.isFinite(n) ? n : null; };
+const truthy = v => !(v === undefined || v === null || v === '' || v === false || v === 0 || v === '0' || v === 'false' || v === 'null');
+const uniq = (arr) => { const seen = new Set(), out = []; for (const x of arr) { const id = x && x.id; if (id === undefined || id === null || String(id) === '' || seen.has(String(id))) continue; seen.add(String(id)); out.push(x); } return out; };
+const validDate = s => /^\d{4}-\d{2}-\d{2}$/.test(String(s || '')) && !isNaN(Date.parse(s));
+const posR2 = v => { const n = num(v); return n !== null && r2(n) > 0; };
+
+function expected(S) {
+  const cust = uniq(A(S.customers)), cids = new Set(cust.map(c => String(c.id)));
+  const prods = uniq(A(S.products)), pids = new Set(prods.map(p => String(p.id)));
+  const orders = uniq(A(S.orders)).filter(o => cids.has(String(o.cid)));
+  const batches = uniq(prods.flatMap(p => A(p.batches))).filter(b => validDate(b.exp));
+  const rets = uniq(A(S.returns)).filter(r => cids.has(String(r.cid)));
+  const counts = {
+    customers: cust.length, products: prods.length, batches: batches.length,
+    orders: orders.length, orders_cancelled: orders.filter(o => truthy(o.cx)).length,
+    order_items: orders.reduce((s, o) => s + A(o.items).filter(i => posR2(i.qty)).length, 0),
+    ledger: uniq(A(S.ledger)).filter(l => cids.has(String(l.cid)) && (l.type === 'OWES' || l.type === 'PAID') && posR2(l.amt)).length,
+    visits: uniq(A(S.visits)).filter(v => cids.has(String(v.cid))).length,
+    village_visits: uniq(A(S.pv)).filter(v => String(v.vl || '').trim()).length,
+    places: uniq(A(S.places)).filter(v => String(v.vl || '').trim()).length,
+    expenses: uniq(A(S.exp)).filter(e => posR2(e.amt)).length,
+    returns: rets.length,
+    promises: uniq(A(S.prom)).filter(p => cids.has(String(p.cid)) && num(p.due) > 0).length
+  };
+  // balances exactly like the app: SUM(OWES) - SUM(PAID) over ALL ledger rows of the customer
+  const bal = new Map();
+  A(S.ledger).forEach(l => bal.set(String(l.cid), (bal.get(String(l.cid)) || 0) + (l.type === 'OWES' ? Number(l.amt) : -Number(l.amt))));
+  const balances = cust.map(c => ({ id: String(c.id), balance: r2(bal.get(String(c.id)) || 0) }));
+  return { counts, balances };
+}
+const LABELS = { customers: 'العملاء', products: 'المنتجات', batches: 'التشغيلات', orders: 'الطلبات', orders_cancelled: 'الطلبات الملغية',
+  order_items: 'أصناف الطلبات', ledger: 'حركات الحساب', visits: 'الزيارات', village_visits: 'زيارات القرى', places: 'الأماكن',
+  expenses: 'المصاريف', returns: 'المرتجعات', promises: 'وعود الدفع' };
+
+// ---------- step 1: login ----------
+$('bLogin').onclick = async () => {
+  const b = $('bLogin'); b.disabled = true; $('o1').innerHTML = '';
+  try {
+    if (!window.supabase) throw new Error('مقدرتش أحمّل مكتبة Supabase. اتأكد من النت وجرّب تاني.');
+    sb = window.supabase.createClient(SB_URL, SB_ANON, { auth: { persistSession: false, autoRefreshToken: true } });
+    const { data, error } = await sb.auth.signInWithPassword({ email: $('em').value.trim(), password: $('pw').value });
+    if (error) throw new Error(error.message === 'Invalid login credentials' ? 'الإيميل أو الباسورد غلط' : error.message);
+    $('pw').value = '';
+    $('o1').innerHTML = `<div class="ok">✔ تم الدخول: ${esc(data.user.email)}</div>`;
+    on('s2', true);
+  } catch (e) { $('o1').innerHTML = `<div class="bad">✘ ${esc(e.message)}</div>`; sb = null; }
+  b.disabled = false;
+};
+
+// ---------- step 2: pick + parse file ----------
+$('bPick').onclick = () => $('fPick').click();
+$('fPick').onchange = async ev => {
+  const f = ev.target.files[0]; ev.target.value = ''; if (!f) return;
+  try {
+    let o = JSON.parse(await f.text());
+    if (o && typeof o.raw === 'string' && o.meta) o = JSON.parse(o.raw);          // backup-check.html format
+    if (!o || !Array.isArray(o.customers) || !Array.isArray(o.products) || !Array.isArray(o.ledger)) throw new Error('الملف ده مش نسخة احتياطية من التطبيق');
+    S = o;
+    const e = expected(S);
+    const dupC = A(S.customers).length - uniq(A(S.customers)).length;
+    $('o2').innerHTML = `<div class="ok">✔ الملف سليم</div><table>${Object.entries(e.counts).map(([k, v]) => `<tr><td>${LABELS[k]}</td><td class="n">${fmt(v)}</td></tr>`).join('')}</table>
+      <div>إجمالي المديونيات: <b>${fmt(r2(e.balances.reduce((s, b) => s + Math.max(b.balance, 0), 0)))} ج</b></div>
+      ${dupC ? `<div class="warn">⚠ فيه ${dupC} عميل بـ ID مكرر أو بدون ID (هيتجاهلوا).</div>` : ''}
+      <div class="mu">قارن العدد ده (العملاء، المديونيات) بالتطبيق قبل ما تكمل.</div>`;
+    on('s3', true); on('s4', false); $('bRep').hidden = true; $('o4').innerHTML = '';
+  } catch (e) { S = null; $('o2').innerHTML = `<div class="bad">✘ ${esc(e.message)}</div>`; on('s3', false); }
+};
+
+// ---------- step 3: chunked import (only the fields the cloud needs; PIN and AI keys are never sent) ----------
+const chunks = (arr, n) => { const o = []; for (let i = 0; i < arr.length; i += n) o.push(arr.slice(i, i + n)); return o; };
+function plan(S) {
+  const p = [{ label: 'الإعدادات', d: { settings: { cyc: S.cyc, home: S.home, aiHideNames: S.aiHideNames } } }];
+  const add = (key, label, size) => chunks(A(S[key]), size).forEach((c, i, all) => p.push({ label: `${label} ${i + 1}/${all.length}`, d: { [key]: c } }));
+  add('customers', 'العملاء', 200); add('products', 'المنتجات', 150); add('orders', 'الطلبات', 200); add('ledger', 'حركات الحساب', 500);
+  add('visits', 'الزيارات', 500); add('pv', 'زيارات القرى', 500); add('places', 'الأماكن', 500); add('exp', 'المصاريف', 500);
+  add('returns', 'المرتجعات', 200); add('prom', 'الوعود', 500);
+  return p;
+}
+$('bRun').onclick = async () => {
+  if (!sb || !S) return; const b = $('bRun'); b.disabled = true;
+  const steps = plan(S); let done = 0; $('pb').style.width = '0';
+  try {
+    for (const st of steps) {
+      $('o3').textContent = `جاري نقل: ${st.label}…`;
+      let r = await sb.rpc('import_legacy', { p_data: st.d });
+      if (r.error && /fetch|network|timeout/i.test(r.error.message)) r = await sb.rpc('import_legacy', { p_data: st.d }); // safe retry (idempotent)
+      if (r.error) throw new Error(`${st.label}: ${r.error.message}`);
+      done++; $('pb').style.width = Math.round(done / steps.length * 100) + '%';
+    }
+    $('o3').innerHTML = '<div class="ok">✔ خلص النقل. دلوقتي قارن الأرقام (الخطوة 4).</div>'; on('s4', true);
+  } catch (e) { $('o3').innerHTML = `<div class="bad">✘ وقف النقل عند: ${esc(e.message)}</div><div class="mu">ماتقلقش، تقدر تدوس «ابدأ النقل» تاني ومفيش حاجة هتتكرر. ولو الخطأ اتكرر ابعتلي صورته.</div>`; }
+  b.disabled = false;
+};
+
+// ---------- step 4: reconcile ----------
+$('bRec').onclick = async () => {
+  if (!sb || !S) return; const b = $('bRec'); b.disabled = true; $('o4').innerHTML = 'جاري المقارنة…';
+  try {
+    const e = expected(S);
+    const c = await sb.rpc('cloud_counts'); if (c.error) throw new Error(c.error.message);
+    const r = await sb.rpc('reconcile_balances', { p_expected: e.balances }); if (r.error) throw new Error(r.error.message);
+    const rec = r.data; let allOk = true;
+    const rows = Object.keys(LABELS).map(k => { const ok = e.counts[k] === c.data[k]; if (!ok) allOk = false;
+      return `<tr><td>${LABELS[k]}</td><td class="n">${fmt(e.counts[k])}</td><td class="n">${fmt(c.data[k] ?? 0)}</td><td class="n ${ok ? 'ok' : 'bad'}">${ok ? '✔' : '✘'}</td></tr>`; }).join('');
+    const mm = A(rec.mismatches), miss = A(rec.missing_in_cloud);
+    if (mm.length || miss.length) allOk = false;
+    $('o4').innerHTML = `<table><tr><th></th><th class="n">الملف</th><th class="n">السحابة</th><th></th></tr>${rows}</table>
+      <div style="margin-top:8px">الأرصدة: قارنت <b>${fmt(rec.compared)}</b> عميل، الفروق: <b class="${mm.length ? 'bad' : 'ok'}">${mm.length}</b>، ناقص في السحابة: <b class="${miss.length ? 'bad' : 'ok'}">${miss.length}</b></div>
+      <div>إجمالي الأرصدة: الملف ${fmt(rec.total_expected)} / السحابة ${fmt(rec.total_actual)}</div>
+      ${mm.slice(0, 15).map(x => `<div class="bad">• ${esc(x.name)}: المتوقع ${x.expected} والموجود ${x.actual}</div>`).join('')}
+      <h2 class="${allOk ? 'ok' : 'bad'}" style="margin-top:10px">${allOk ? '✅ النقل سليم 100%: كل الأرقام متطابقة، والفروق = 0' : '❌ فيه فروق. ماتكملش، وابعتلي صورة الشاشة دي.'}</h2>`;
+    REPORT = { at: new Date().toISOString(), ok: allOk, file_counts: e.counts, cloud_counts: c.data, balances: { compared: rec.compared, mismatches: mm, missing_in_cloud: miss, total_expected: rec.total_expected, total_actual: rec.total_actual } };
+    $('bRep').hidden = false;
+  } catch (er) { $('o4').innerHTML = `<div class="bad">✘ ${esc(er.message)}</div>`; }
+  b.disabled = false;
+};
+$('bRep').onclick = () => {
+  const u = URL.createObjectURL(new Blob([JSON.stringify(REPORT, null, 2)], { type: 'application/json' }));
+  const a = document.createElement('a'); a.href = u; a.download = 'reconciliation_report.json'; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(u); a.remove(); }, 2000);
+};
+window.__test = { expected, plan };
+</script>
+</body>
+</html>
