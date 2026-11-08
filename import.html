@@ -60,12 +60,36 @@ pre{white-space:pre-wrap;word-break:break-word;font-size:13px}
   <button id="bRep" class="sec" hidden>⬇️ نزّل تقرير المطابقة</button>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 <script>
 'use strict';
 // Public values (safe to be here: the anon key only works through Row Level Security).
 const SB_URL = 'https://hioringmhouagmmtvdcp.supabase.co';
-const SB_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imhpb3JpbmdtaG91YWdtbXR2ZGNwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTM5ODM3MjQsImV4cCI6MjEwOTU1OTcyNH0.Zv9sSxuVSgvjnjP7DtPplfAvMeg3W9IiBY_WnDSsunQ';
+const SB_KEY = 'sb_publishable_e5H7PWboRr_GyJXrOug3xA_Zen409zF';
+
+// Minimal Supabase client (no library): publishable key goes ONLY in the `apikey` header;
+// the logged-in user's token goes in `Authorization`.
+const API = {
+  tok: null, ref: null, user: null,
+  async _auth(grant, body) {
+    const r = await fetch(SB_URL + '/auth/v1/token?grant_type=' + grant, { method: 'POST',
+      headers: { apikey: SB_KEY, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(j.msg || j.error_description || j.message || ('HTTP ' + r.status));
+    this.tok = j.access_token; this.ref = j.refresh_token; this.user = j.user; return j;
+  },
+  login(email, password) { return this._auth('password', { email, password }); },
+  refresh() { return this._auth('refresh_token', { refresh_token: this.ref }); },
+  async rpc(name, args, retry = true) {
+    let r;
+    try { r = await fetch(SB_URL + '/rest/v1/rpc/' + name, { method: 'POST',
+      headers: { apikey: SB_KEY, Authorization: 'Bearer ' + this.tok, 'Content-Type': 'application/json' }, body: JSON.stringify(args || {}) }); }
+    catch (e) { return { data: null, error: { message: 'network: ' + e.message } }; }
+    const j = await r.json().catch(() => null);
+    if (r.status === 401 && retry && this.ref) { await this.refresh(); return this.rpc(name, args, false); }
+    if (!r.ok) return { data: null, error: { message: (j && (j.message || j.hint || j.error)) || ('HTTP ' + r.status) } };
+    return { data: j, error: null };
+  }
+};
 
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -114,14 +138,15 @@ const LABELS = { customers: 'العملاء', products: 'المنتجات', batc
 $('bLogin').onclick = async () => {
   const b = $('bLogin'); b.disabled = true; $('o1').innerHTML = '';
   try {
-    if (!window.supabase) throw new Error('مقدرتش أحمّل مكتبة Supabase. اتأكد من النت وجرّب تاني.');
-    sb = window.supabase.createClient(SB_URL, SB_ANON, { auth: { persistSession: false, autoRefreshToken: true } });
-    const { data, error } = await sb.auth.signInWithPassword({ email: $('em').value.trim(), password: $('pw').value });
-    if (error) throw new Error(error.message === 'Invalid login credentials' ? 'الإيميل أو الباسورد غلط' : error.message);
+    const em = $('em').value.trim();
+    await API.login(em, $('pw').value);
+    sb = API;
     $('pw').value = '';
-    $('o1').innerHTML = `<div class="ok">✔ تم الدخول: ${esc(data.user.email)}</div>`;
+    $('o1').innerHTML = `<div class="ok">✔ تم الدخول: ${esc(API.user && API.user.email || em)}</div>`;
     on('s2', true);
-  } catch (e) { $('o1').innerHTML = `<div class="bad">✘ ${esc(e.message)}</div>`; sb = null; }
+  } catch (e) {
+    const m = /Invalid login credentials/i.test(e.message) ? 'الإيميل أو الباسورد غلط' : /Failed to fetch|NetworkError|Load failed/i.test(e.message) ? 'مفيش اتصال بالنت أو Supabase مش بيرد. جرّب تاني.' : e.message;
+    $('o1').innerHTML = `<div class="bad">✘ ${esc(m)}</div>`; sb = null; }
   b.disabled = false;
 };
 
