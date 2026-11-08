@@ -226,6 +226,8 @@
   CL.compare = compare;
   CL.touch = function () { if (FLAGS.dualWrite) schedule(2500); };
   CL._test = { sync, diff, expected, rpc, cfg };
+  // small public surface for other modules (ai-gw.js): token, base url, public key, flag helper, login state
+  CL.ensureTok = ensureTok; CL.base = SB_URL; CL.key = SB_KEY; CL.setFlag = setFlag; CL.logged = () => !!cfg().rt; CL.uid = () => cfg().uid || '';
 
   // ---------------- screen ----------------
   function cloudView() {
