@@ -297,3 +297,4 @@
     console.log('🧭 route.js ready');
   } catch (er) { console.error('[route.js] failed to attach, app continues unchanged:', er); }
 })();
+
