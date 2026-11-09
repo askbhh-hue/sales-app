@@ -33,7 +33,7 @@
     if (status === 429 && e === 'quota_exceeded') return 'وصلت للحد اليومي من الذكاء الاصطناعي، جرّب بكرة';
     if (status === 503) return 'السيرفر لسه مفيهوش مفاتيح ذكاء اصطناعي';
     if (status === 404) return 'خدمة الذكاء الاصطناعي على السيرفر مش متفعّلة لسه';
-    if (status === 502 && e === 'all_failed') return 'كل المزوّدين مشغولين دلوقتي، جرّب بعد شوية (' + ((j.tried || []).map(x => x.provider + ':' + x.status).join('، ')) + ')';
+    if (status === 502 && e === 'all_failed') return 'كل المزوّدين مشغولين دلوقتي، جرّب بعد شوية (' + ((j.tried || []).map(x => x.provider + ':' + x.status + (x.msg ? ' ' + String(x.msg).slice(0, 90) : '')).join(' | ')) + ')';
     return 'الخدمة رجعت خطأ ' + status + (e ? ': ' + e : '');
   }
 
