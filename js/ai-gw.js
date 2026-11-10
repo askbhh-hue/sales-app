@@ -64,6 +64,7 @@
       if (!on()) return _aiStatus();
       const g = GW.last; return '🟢 الذكاء الاصطناعي شغال من السيرفر' + (g ? ' (' + esc(g.provider) + ')' : '') + '، من غير أي مفتاح على الجهاز.';
     };
+    if (on() && !S.agAlwaysSet) { S.agAlways = true; S.agAlwaysSet = 1; try { save(); } catch (_) {} }   // one time: make AI-first visible in the assistant settings
     const _aiAsk = aiAsk;
     aiAsk = function (t) {
       if (!on()) return _aiAsk.apply(this, arguments);
@@ -71,7 +72,7 @@
       const multi = (t.match(/(حصل|حصّل|سجل|سجّل|ابعت|افتح|بعت|ضيف|غير|امسح|زود|وصل|وريني|روح|خلي|اعمل)/g) || []).length >= 2 || /(ثم|وبعدين|وبعد كده|وبعدها)/.test(t);
       aiMsgs.push({ me: 1, h: e(t) });
       if (navigator.onLine === false) { let l = null; try { l = aiLocal(t); } catch (_) {} aiMsgs.push({ bot: 1, h: l != null ? l : AI_HELP }); return aiRender(); }
-      if (S.agAlways || multi) return axAgent(t, 'server');
+      if (S.agAlways !== false || multi) return axAgent(t, 'server');   // AI first; local rules are the fallback (offline / AI failed)
       let local = null; try { local = aiLocal(t); } catch (er) { console.error('aiLocal', er); }
       if (local !== null && local !== undefined) { aiMsgs.push({ bot: 1, h: local }); return aiRender(); }
       return axAgent(t, 'server');
@@ -99,7 +100,7 @@
   async function toggle() {
     if (FLAGS.useServerAI) { CL.setFlag('useServerAI', false); GW.msg = 'رجعنا للطريقة القديمة (مفتاح الجهاز).'; return redraw(); }
     await test();
-    if (GW.ok) { CL.setFlag('useServerAI', true); GW.msg += ' — اتفعّل ✅'; }
+    if (GW.ok) { CL.setFlag('useServerAI', true); if (!S.agAlwaysSet) { S.agAlways = true; S.agAlwaysSet = 1; save(); } GW.msg += ' — اتفعّل ✅'; }
     redraw();
   }
   GW.test = test; GW.toggle = toggle; GW.on = on;
