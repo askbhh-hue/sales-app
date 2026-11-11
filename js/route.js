@@ -267,22 +267,37 @@
     }
   };
 
+  // ---- Google Maps links built from the VILLAGES in the engine's order (coordinates only, max 9 stops per link) ----
+  function mapsLinks(p, st) {
+    const pts = p.list.filter(x => okLL(x.ll)).map(x => (+x.ll.lat).toFixed(6) + ',' + (+x.ll.lng).toFixed(6));
+    const out = [];
+    for (let i = 0; i < pts.length; i += 9) {
+      const ch = pts.slice(i, i + 9), dest = ch[ch.length - 1], way = ch.slice(0, -1);
+      let origin = '';
+      if (i) origin = pts[i - 1];                                                     // 2nd part starts where the 1st ended
+      else if (cfg().start !== 'gps' && okLL(st)) origin = (+st.lat).toFixed(6) + ',' + (+st.lng).toFixed(6);   // GPS start = let Google use the live location
+      out.push({ url: 'https://www.google.com/maps/dir/?api=1&travelmode=driving' + (origin ? '&origin=' + encodeURIComponent(origin) : '') + '&destination=' + encodeURIComponent(dest) + (way.length ? '&waypoints=' + encodeURIComponent(way.join('|')) : ''), n: ch.length });
+    }
+    return out;
+  }
+
+  E.mapsLinks = mapsLinks;
   function view() {
     const c = cfg(), p = E.plan({ dry: false }), st = E.start(), f = fuel();
     const mzOpts = Object.keys(p.byMz || {}).map(m => `<option value="${esc(m)}"${m === p.mz ? ' selected' : ''}>${esc(m)} (${p.byMz[m].reduce((s, x) => s + x.pn.length, 0)} عميل)</option>`).join('');
     const head = back("go('more')") + '<h2>🧭 جولة النهارده</h2><div class="sub">قرية قرية، الأقرب الأول، لحد ما تخلّص المركز كله.</div>';
     if (!p.mz) return head + '<div class="card" style="text-align:center"><div style="font-size:30px">🎉</div><b>مفيش عملاء محتاجين زيارة دلوقتي</b><div class="mu">كل عملائك اتزاروا في آخر ' + (S.cyc || 14) + ' يوم.</div></div>' + settings(c, f, mzOpts, p, st);
     const pct = p.vTotal ? Math.round(p.vDone / p.vTotal * 100) : 0;
-    const stops = tourStops(p.list), href = (() => { try { const u = gmUrls(stops); return u; } catch (_) { return []; } })();
+    const href = mapsLinks(p, st);
     return head + `<div class="card"><div class="mu">المركز الحالي</div><div class="hn" style="font-size:22px;margin:4px 0">${esc(p.mz)}</div>
       <div class="mu">خلّصت ${p.vDone} من ${p.vTotal} قرية • فاضل ${p.left} عميل</div>
       <div style="height:8px;border-radius:6px;background:rgba(127,127,127,.25);margin:8px 0"><div style="height:8px;border-radius:6px;background:var(--pr,#3ddc97);width:${pct}%"></div></div>
       <div class="mu">النهارده: ${p.list.length} قرية • ${p.n} عميل • مشوار تقريبي ${dstr(p.km)}${c.round ? ' (رايح جاي)' : ''} • بنزين حوالي ${p.cost.toLocaleString('ar-EG')} جنيه${p.unk ? ' • ' + p.unk + ' قرية من غير موقع' : ''}</div></div>
       ${mapBlock(p)}
-      ${p.list.map((x, i) => `<div class="card"><b>${i + 1}. ${esc(gname(x))}</b> <span class="mu">• ${x.pn.length} عميل${okLL(x.ll) ? (x.hop ? ' • ' + dstr(Math.round(x.hop * ROAD * 10) / 10) + ' من اللي قبلها' : '') : ' • مفيش موقع للقرية'}</span>
+      ${p.list.map((x, i) => `<div class="card"><b>${i + 1}. ${esc(gname(x))}</b> ${okLL(x.ll) ? '<a class="pp" target="_blank" rel="noopener" href="' + esc(vhref(x)) + '">🧭 روح للقرية دي</a>' : ''} <span class="mu">• ${x.pn.length} عميل${okLL(x.ll) ? (x.hop ? ' • ' + dstr(Math.round(x.hop * ROAD * 10) / 10) + ' من اللي قبلها' : '') : ' • مفيش موقع للقرية'}</span>
         ${x.pn.slice(0, 15).map(q => `<div class="item"><button class="itm-main" onclick="open_('${esc(q.id)}')"><span class="grow"><span class="nm">${esc(q.name)}</span><span class="sb">${esc([q.shop, q.phone].filter(Boolean).join(' • ') || '—')}${bal(q.id) > 0 ? ' • عليه ' + Math.round(bal(q.id)) : ''}</span></span></button>${q.phone ? `<a class="icobtn" href="tel:${esc(q.phone)}">📞</a>` : ''}<button class="icobtn" aria-label="تمت الزيارة" onclick="RTE.done('${esc(q.id)}')">✓</button></div>`).join('')}
         ${x.pn.length > 15 ? '<div class="mu">+ ' + (x.pn.length - 15) + ' عميل تانيين</div>' : ''}</div>`).join('')}
-      ${href.map((u, i) => `<a class="btn" target="_blank" rel="noopener" href="${esc(u)}">🧭 ${href.length > 1 ? 'الجزء ' + (i + 1) + ' من ' + href.length + ' • ' : ''}افتح على جوجل مابس</a>`).join('')}
+      ${href.map((u, i) => `<a class="btn" target="_blank" rel="noopener" href="${esc(u.url)}">🧭 ${href.length > 1 ? 'الجزء ' + (i + 1) + ' من ' + href.length + ' • ' : ''}افتح المسار في جوجل مابس (${u.n} قرى)</a>`).join('')}
       ${settings(c, f, mzOpts, p, st)}`;
   }
   // ---- find places for villages that have none (free OpenStreetMap search, cached in S.vc, 1 request/second) ----
