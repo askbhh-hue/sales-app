@@ -271,8 +271,8 @@
   function mapsLinks(p, st) {
     const pts = p.list.filter(x => okLL(x.ll)).map(x => (+x.ll.lat).toFixed(6) + ',' + (+x.ll.lng).toFixed(6));
     const out = [];
-    for (let i = 0; i < pts.length; i += 9) {
-      const ch = pts.slice(i, i + 9), dest = ch[ch.length - 1], way = ch.slice(0, -1);
+    for (let i = 0; i < pts.length; i += 3) {
+      const ch = pts.slice(i, i + 3), dest = ch[ch.length - 1], way = ch.slice(0, -1);
       let origin = '';
       if (i) origin = pts[i - 1];                                                     // 2nd part starts where the 1st ended
       else if (cfg().start !== 'gps' && okLL(st)) origin = (+st.lat).toFixed(6) + ',' + (+st.lng).toFixed(6);   // GPS start = let Google use the live location
@@ -297,7 +297,8 @@
       ${p.list.map((x, i) => `<div class="card"><b>${i + 1}. ${esc(gname(x))}</b> ${okLL(x.ll) ? '<a class="pp" target="_blank" rel="noopener" href="' + esc(vhref(x)) + '">🧭 روح للقرية دي</a>' : ''} <span class="mu">• ${x.pn.length} عميل${okLL(x.ll) ? (x.hop ? ' • ' + dstr(Math.round(x.hop * ROAD * 10) / 10) + ' من اللي قبلها' : '') : ' • مفيش موقع للقرية'}</span>
         ${x.pn.slice(0, 15).map(q => `<div class="item"><button class="itm-main" onclick="open_('${esc(q.id)}')"><span class="grow"><span class="nm">${esc(q.name)}</span><span class="sb">${esc([q.shop, q.phone].filter(Boolean).join(' • ') || '—')}${bal(q.id) > 0 ? ' • عليه ' + Math.round(bal(q.id)) : ''}</span></span></button>${q.phone ? `<a class="icobtn" href="tel:${esc(q.phone)}">📞</a>` : ''}<button class="icobtn" aria-label="تمت الزيارة" onclick="RTE.done('${esc(q.id)}')">✓</button></div>`).join('')}
         ${x.pn.length > 15 ? '<div class="mu">+ ' + (x.pn.length - 15) + ' عميل تانيين</div>' : ''}</div>`).join('')}
-      ${href.map((u, i) => `<a class="btn" target="_blank" rel="noopener" href="${esc(u.url)}">🧭 ${href.length > 1 ? 'الجزء ' + (i + 1) + ' من ' + href.length + ' • ' : ''}افتح المسار في جوجل مابس (${u.n} قرى)</a>`).join('')}
+      ${(() => { const nx = p.list.find(x => okLL(x.ll)); return nx ? '<a class="btn" target="_blank" rel="noopener" href="' + esc(vhref(nx)) + '">🧭 ابدأ: روح ' + esc(gname(nx)) + ' (من مكانك)</a>' : ''; })()}
+      ${href.map((u, i) => `<a class="btn" target="_blank" rel="noopener" href="${esc(u.url)}">🧭 ${href.length > 1 ? 'الجزء ' + (i + 1) + ' من ' + href.length + ' • ' : ''}مسار ${u.n} قرى مع بعض</a>`).join('')}
       ${settings(c, f, mzOpts, p, st)}`;
   }
   // ---- find places for villages that have none (free OpenStreetMap search, cached in S.vc, 1 request/second) ----
