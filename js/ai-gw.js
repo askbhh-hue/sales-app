@@ -64,17 +64,15 @@
       if (!on()) return _aiStatus();
       const g = GW.last; return '🟢 الذكاء الاصطناعي شغال من السيرفر' + (g ? ' (' + esc(g.provider) + ')' : '') + '، من غير أي مفتاح على الجهاز.';
     };
-    if (on() && !S.agAlwaysSet) { S.agAlways = true; S.agAlwaysSet = 1; try { save(); } catch (_) {} }   // one time: make AI-first visible in the assistant settings
+    // AI-only: when the server AI is on there is NO local rule assistant. Every request goes to the model (which calls the app's tools).
+    // If the AI cannot be reached the user gets an honest message, never a rule-based guess.
+    const _aiLocal = aiLocal; aiLocal = function () { return on() ? null : _aiLocal.apply(this, arguments); };
     const _aiAsk = aiAsk;
     aiAsk = function (t) {
       if (!on()) return _aiAsk.apply(this, arguments);
       t = String(t == null ? '' : t).trim(); if (!t) return;
-      const multi = (t.match(/(حصل|حصّل|سجل|سجّل|ابعت|افتح|بعت|ضيف|غير|امسح|زود|وصل|وريني|روح|خلي|اعمل)/g) || []).length >= 2 || /(ثم|وبعدين|وبعد كده|وبعدها)/.test(t);
       aiMsgs.push({ me: 1, h: e(t) });
-      if (navigator.onLine === false) { let l = null; try { l = aiLocal(t); } catch (_) {} aiMsgs.push({ bot: 1, h: l != null ? l : AI_HELP }); return aiRender(); }
-      if (S.agAlways !== false || multi) return axAgent(t, 'server');   // AI first; local rules are the fallback (offline / AI failed)
-      let local = null; try { local = aiLocal(t); } catch (er) { console.error('aiLocal', er); }
-      if (local !== null && local !== undefined) { aiMsgs.push({ bot: 1, h: local }); return aiRender(); }
+      if (navigator.onLine === false) { aiMsgs.push({ bot: 1, h: '<span class="red">مفيش إنترنت دلوقتي، والمساعد بيشتغل بالذكاء الاصطناعي بس. اتصل بالنت وجرّب تاني.</span>' }); return aiRender(); }
       return axAgent(t, 'server');
     };
   }
@@ -100,7 +98,7 @@
   async function toggle() {
     if (FLAGS.useServerAI) { CL.setFlag('useServerAI', false); GW.msg = 'رجعنا للطريقة القديمة (مفتاح الجهاز).'; return redraw(); }
     await test();
-    if (GW.ok) { CL.setFlag('useServerAI', true); if (!S.agAlwaysSet) { S.agAlways = true; S.agAlwaysSet = 1; save(); } GW.msg += ' — اتفعّل ✅'; }
+    if (GW.ok) { CL.setFlag('useServerAI', true); GW.msg += ' — اتفعّل ✅'; }
     redraw();
   }
   GW.test = test; GW.toggle = toggle; GW.on = on;

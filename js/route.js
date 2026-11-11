@@ -336,8 +336,47 @@
   }
   E.view = view;
 
+  // ---- tool for the AI agent: the model asks, this engine computes (no guessing of distances by the model) ----
+  function planSummary(p) {
+    return {
+      ok: true, markaz: p.mz, customers_today: p.n, villages_today: p.list.length,
+      stops: p.list.map((x, i) => ({ order: i + 1, village: gname(x), customers: x.pn.length, has_location: okLL(x.ll) })),
+      distance_km_estimate: p.km, fuel_cost_egp: p.cost, villages_without_location: p.unk,
+      options: (p.alts || []).map(a => ({ id: a.id, label: a.names.join(' = '), villages: a.nv, customers: a.n, km: a.km, fuel_cost_egp: Math.round(a.km / fuel().kmpl * fuel().price), active: a.id === p.active || a.ids.includes(p.active) })),
+      other_markaz: (p.others || []).filter(o => o.nv).map(o => ({ name: o.mz, villages: o.nv, customers: o.n, km: o.km })),
+      note: 'distances are estimates (straight line x 1.3), real road distance is shown on the tour screen'
+    };
+  }
+  function planTool(a) {
+    a = a || {};
+    let p = E.plan({ dry: true });
+    if (a.action === 'choose_option') {
+      const al = (p.alts || []).find(x => x.id === a.option || x.ids.includes(a.option));
+      if (!al) return { ok: false, error: 'مفيش اختيار بالاسم ده', options: (p.alts || []).map(x => x.id) };
+      E.pickAlt(al.id); p = E.plan({ dry: true });
+    } else if (a.action === 'switch_markaz') {
+      const names = Object.keys(p.byMz || {});
+      const nm = names.find(m => m === a.markaz) || names.find(m => String(m).includes(a.markaz || '#'));
+      if (!nm) return { ok: false, error: 'المركز ده مش موجود', markaz_names: names };
+      E.setMz(nm); p = E.plan({ dry: true });
+    }
+    return planSummary(p);
+  }
+  function registerTool() {
+    if (typeof AXT === 'undefined' || !AXT.push || AXT.some(t => t.name === 'plan_route')) return;
+    AXT.push({ name: 'plan_route', description: 'خطة جولة النهارده (قرية قرية والأقرب الأول لحد ما المركز يخلص): القرى بالترتيب، عدد العملاء، الكيلومترات والبنزين التقديريين، والاختيارات البديلة. استخدمها لأي سؤال عن الجولة أو المسار أو أنهي قرية أروح. action=show للعرض، choose_option لاعتماد اختيار من options، switch_markaz لتغيير المركز (بيغيّر الخطة فعلاً).',
+      parameters: { type: 'object', properties: { action: { type: 'string', enum: ['show', 'choose_option', 'switch_markaz'] }, option: { type: 'string', description: 'id من options' }, markaz: { type: 'string' } }, required: [] } });
+    const _eat = executeAgentTool;
+    executeAgentTool = async function (name, a) {
+      if (name === 'plan_route') { try { return planTool(a); } catch (er) { return { ok: false, error: 'حصلت مشكلة في حساب الجولة: ' + er.message }; } }
+      return _eat.apply(this, arguments);
+    };
+  }
+  E.planTool = planTool;
+
   try {
     attach();
+    registerTool();
     const _mv = mapView;
     mapView = function () { try { if (v && v.rte) return view(); } catch (er) { console.error('[rte]', er); return back("go('more')") + '<div class="card red">حصلت مشكلة في شاشة الجولة، ارجع للمزيد.</div>'; } return _mv(); };
     const _more = moreView;
