@@ -101,6 +101,24 @@
     if (GW.ok) { CL.setFlag('useServerAI', true); GW.msg += ' — اتفعّل ✅'; }
     redraw();
   }
+  // test every configured provider separately (so a working backup is proven BEFORE the day Gemini fails)
+  async function testEach() {
+    if (GW.busy) return; GW.busy = true; GW.msg = '⏳ بجرّب كل مزوّد لوحده…'; redraw();
+    try {
+      if (!CL.logged()) throw new Error('NOLOGIN');
+      const s = await gw({ action: 'status' });
+      if (s.status !== 200) throw new Error(explain(s.status, s.j));
+      const res = [];
+      for (const p of s.j.configured || []) {
+        const r = await gw({ only: p, messages: [{ role: 'user', content: 'رد بكلمة واحدة بس: تمام' }], max_tokens: 30 });
+        const g = (r.j && r.j._gw) || {}, t0 = ((r.j && r.j.tried) || [])[0] || {};
+        res.push(r.status === 200 ? '✔ ' + p + ' (' + (g.ms || '?') + ' ملي ثانية)' : '✘ ' + p + ': ' + (t0.msg || explain(r.status, r.j)));
+      }
+      GW.msg = res.length ? res.join(' • ') : 'مفيش مزوّد متسجّل';
+    } catch (er) { GW.msg = '✘ ' + (er.message === 'NOLOGIN' ? 'سجّل دخول السحابة الأول' : er.message || 'مشكلة'); }
+    GW.busy = false; redraw();
+  }
+  GW.testEach = testEach;
   GW.test = test; GW.toggle = toggle; GW.on = on;
 
   function card() {
@@ -110,6 +128,7 @@
       <div style="margin:6px 0">${f ? '<span class="grn">✅ شغّال</span>' : '<span class="mu">⏸ موقوف (بيستخدم الطريقة القديمة)</span>'}</div>
       ${GW.msg ? '<div class="mu" style="margin:6px 0">' + esc(GW.msg) + '</div>' : ''}
       <button class="btn t" onclick="GW.test()">🧪 جرّب السيرفر</button>
+      <button class="btn t" onclick="GW.testEach()">🔬 جرّب كل مزوّد لوحده (الاحتياطي)</button>
       <button class="btn" onclick="GW.toggle()">${f ? '⏸ وقّف الذكاء من السيرفر' : '▶️ شغّل الذكاء من السيرفر'}</button></div>`;
   }
 
