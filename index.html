@@ -175,7 +175,7 @@ body.agopen #agsc,body.agopen #ag{display:block}.agh{display:flex;justify-conten
 #agfab[data-n]:not([data-n=""])::after{content:attr(data-n);position:absolute;top:-4px;right:-4px;min-width:22px;height:22px;border-radius:11px;background:var(--red);color:var(--redt);font:800 12px Cairo,sans-serif;display:flex;align-items:center;justify-content:center;padding:0 5px}
 .axc{background:var(--surf2);border-radius:16px;padding:14px;margin:6px 0}.axc.high{box-shadow:inset 0 0 0 2px var(--red)}.axc.mid{box-shadow:inset 0 0 0 1px var(--line)}
 .axh{font-weight:800;font-size:16px;margin-bottom:6px}.axl{font-size:15px;line-height:1.9}.axw{color:var(--amb);font-weight:700;margin:8px 0}
-#agmic.rec{background:var(--red);color:var(--redt);animation:agp 1s infinite}@keyframes agp{50%{opacity:.55}}.agin .btn{flex:none}
+#agmic.rec,#aimic.rec{background:var(--red);color:var(--redt);animation:agp 1s infinite}@keyframes agp{50%{opacity:.55}}.agin .btn{flex:none}
 .msgf{display:flex;gap:8px;flex-wrap:wrap;margin:6px 0 14px}.msgf select,.msgf input,.msgf textarea{flex:1 1 140px;min-width:0;min-height:50px;border-radius:14px;border:0;background:var(--surf2);color:var(--tx);padding:10px 14px;font:inherit;font-size:16px}.msgf select{flex:1 1 100%}
 </style>
 <style id="ux3">/* ===== UX layer 3: صقل الهوية ===== */
@@ -922,7 +922,7 @@ function aiView(){const cloud=!!aiKey()&&!!S.aiOk;
   <p class="mu" style="margin-top:-8px">${aiStatus()}</p>
   <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px">${AI_CHIPS.map((c,i)=>`<button class="btn t sm" style="width:auto;display:inline-block;margin:0" onclick="aiQuick(${i})">${e(c)}</button>`).join('')}</div>
   <div id="aichat">${aiMsgs.map(m=>`<div class="card" style="${m.me?'margin-right:24px;background:var(--pr);color:var(--prt)':'margin-left:24px'}">${m.h}</div>`).join('')}</div>
-  <div class="row" style="align-items:stretch"><input id="aiin" placeholder="اكتب سؤالك..." onkeydown="if(event.key==='Enter')aiSend()"><button class="btn" style="flex:none;width:auto;padding:0 18px;margin:0 0 10px" onclick="aiSend()">إرسال</button></div>
+  <div class="row" style="align-items:stretch"><input id="aiin" placeholder="اكتب سؤالك..." onkeydown="if(event.key==='Enter')aiSend()"><button class="btn t" id="aimic" style="flex:none;width:auto;padding:0 16px;margin:0 0 10px" onclick="axVoice('tab')" aria-label="أمر صوتي">🎤</button><button class="btn" style="flex:none;width:auto;padding:0 18px;margin:0 0 10px" onclick="aiSend()">إرسال</button></div>
   <button class="btn t sm" onclick="aiClear()">🧹 امسح المحادثة</button>`}
 function aiSave(){const typed=String((($('aik')||{}).value)||'').trim();
   try{if(typed)localStorage.setItem('fs_ai_key',typed)}catch(_){toast('المتصفح مانعش الحفظ');return}
@@ -1579,16 +1579,16 @@ function axAdvise(n){const crop=AXK.find(c=>c[0].split('|').some(x=>n.includes(a
   const st=crop[1].find(s=>s[0].split('|').some(x=>n.includes(anorm(x)))),L=st?[st]:crop[1];
   const rec=ns=>{const seen=new Set(),out=[];ns.forEach(k=>{const pat=AXNU[k]||k;S.products.filter(p=>axHasAlt(anorm(p.name+' '+(p.ai||'')),pat)&&!seen.has(p.id)).sort((a,b)=>(b.stock>0)-(a.stock>0)).slice(0,2).forEach(p=>{seen.add(p.id);out.push(p)})});return out.slice(0,4)};
   return `🌱 <b>${e(crop[0].split('|')[0])}</b>${st?'':' — برنامج التغذية على المراحل'}`+L.map(s=>{const r=rec(s[3]);return `<div class="axl"><b>${e(s[0].split('|')[0])}:</b> ${s[1]}${r.length?'<br>من أصنافك: '+r.map(p=>e(p.name)+(p.stock>0?' (متاح '+p.stock+')':' (خلصان)')).join('، '):''}</div>`}).join('')+`<span class="mu">إرشاد عام. الكميات تتحدد بتحليل التربة/الورق ونشرة المنتج، وللمبيدات اتبع العبوة وتوصيات مهندس الزراعة.</span>`}
-function axVoice(){
-  const SR=window.SpeechRecognition||window.webkitSpeechRecognition,b=$('agmic');
+function axVoice(w){
+  const T=w==='tab',SR=window.SpeechRecognition||window.webkitSpeechRecognition,b=$(T?'aimic':'agmic');
   const KB='الميكروفون مش شغّال هنا. استخدم ميكروفون الكيبورد 🎤 (تحت على اليمين)';
   const done=()=>{try{clearTimeout(axVoice._t1);clearTimeout(axVoice._t2)}catch(_){}b&&b.classList.remove('rec');axVoice._r=null};
   if(axVoice._r){try{axVoice._r.stop()}catch(_){}setTimeout(()=>{if(axVoice._r){try{axVoice._r.abort()}catch(_){}done()}},1500);return}   // 2nd tap = stop
-  if(!SR){toast(KB);try{$('agi').focus()}catch(_){}return}
+  if(!SR){toast(KB);try{$(T?'aiin':'agi').focus()}catch(_){}return}
   let got=false,started=false;const r=new SR();axVoice._r=r;r.lang='ar-EG';r.interimResults=false;r.maxAlternatives=1;r.continuous=false;
   b&&b.classList.add('rec');
   r.onstart=()=>{started=true;try{clearTimeout(axVoice._t1)}catch(_){}};
-  r.onresult=ev=>{got=true;const t=ev.results[0][0].transcript;done();try{$('agi').value=t;agSend()}catch(_){}};
+  r.onresult=ev=>{got=true;const t=ev.results[0][0].transcript;done();try{if(T){$('aiin').value=t;aiSend()}else{$('agi').value=t;agSend()}}catch(_){}};
   r.onerror=ev=>{const c=ev&&ev.error;done();toast(c==='not-allowed'||c==='service-not-allowed'?'الميكروفون مش مسموح. '+KB:c==='no-speech'?'مسمعتش حاجة، جرّب تاني':KB)};
   r.onend=()=>{const was=axVoice._r===r;done();if(was&&!got)toast('مسمعتش كويس، جرّب تاني')};
   axVoice._t1=setTimeout(()=>{if(!started){try{r.abort()}catch(_){}done();toast(KB)}},3500);   // never started listening
