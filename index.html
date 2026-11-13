@@ -587,9 +587,9 @@ async function fillApprox(id){const c=C(id);if(!c||c.lat!=null||!c.village)retur
   else toast('مالقيتش '+c2.village+' على الخريطة. سجّل موقعه بإيدك من صفحة العميل')}
 function tourHref(g){let st=g.slice(0,3).map(x=>{const c=gll(x);return c?{ll:c.lat+','+c.lng,lat:c.lat,lng:c.lng}:{ll:[x.vl,x.mz==='بدون مركز'?'':x.mz,'بني سويف مصر'].filter(Boolean).join(' ')}});
   if(st.length>2&&st.every(s=>s.lat!==undefined)){const H=homeLL(),r=[];let cur=H;if(!cur){cur=st.shift();r.push(cur)}while(st.length){let bi=0,bd=1e9;st.forEach((s,i)=>{const d=hav(cur,s);if(d<bd){bd=d;bi=i}});cur=st.splice(bi,1)[0];r.push(cur)}st=r}
-  const dest=st[st.length-1],w=st.slice(0,-1).map(s=>s.ll).join('|');
-  return 'https://www.google.com/maps/dir/?api=1&travelmode=driving'+originQ()+'&destination='+encodeURIComponent(dest.ll)+(w?'&waypoints='+encodeURIComponent(w):'')}
+  return gmDir(originV(),st.map(s=>s.ll))}
 const homeLL=()=>S.home&&S.home.lat!=null?{lat:S.home.lat,lng:S.home.lng}:null;
+const originV=()=>S.home?(S.home.lat!=null?(+S.home.lat).toFixed(6)+','+(+S.home.lng).toFixed(6):[S.home.n,S.home.mz?'مركز '+S.home.mz:'','بني سويف','مصر'].filter(Boolean).join('، ')):'';
 const originQ=()=>S.home?'&origin='+encodeURIComponent(S.home.lat!=null?S.home.lat+','+S.home.lng:[S.home.n,S.home.mz?'مركز '+S.home.mz:'','بني سويف','مصر'].filter(Boolean).join('، ')):'';
 async function homeGeo(){const h=S.home;if(!h||h.lat!=null||navigator.onLine===false||(h.miss&&Date.now()-h.miss<6048e5))return;const r=await geoVillage(h.n,h.mz);if(r){h.lat=r.lat;h.lng=r.lng;delete h.miss}else h.miss=Date.now();save()}
 async function setHome(){const n=(prompt('اسم القرية اللي بتنطلق منها دايمًا:',S.home.n)||'').trim();if(!n)return;const g=Object.entries(GZ).find(([z,l])=>l.some(x=>nk(x)===nk(n)));S.home={n,mz:g?g[0]:''};save();render();await homeGeo();render()}
@@ -1062,8 +1062,9 @@ const hav=(a,b)=>{const r=x=>x*Math.PI/180,h=Math.sin(r(b.lat-a.lat)/2)**2+Math.
 let rad=2,mk='';const MC=['#2e7d32','#1565c0','#ef6c00','#8e24aa','#c62828','#00838f','#6d4c41','#455a64'],mcol=c=>c.mz&&MZ.includes(c.mz)?MC[MZ.indexOf(c.mz)]:'#888';
 function parseLL(s){s=(s||'').trim();const m=s.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/)||s.match(/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/)||s.match(/[?&](?:q|ll|query|destination)=(-?\d+\.\d+)(?:,|%2C)(-?\d+\.\d+)/i)||s.match(/^(-?\d+\.\d+)\s*[,،]\s*(-?\d+\.\d+)$/);return m?{lat:+m[1],lng:+m[2]}:null}
 function setLoc(id){const t=(prompt('الصق إحداثيات المكان أو رابط طويل من الخرائط (مثال: 28.9101, 31.0902)')||'').trim();if(!t)return;const c=C(id),ll=parseLL(t);if(!ll)return toast('مش لاقي إحداثيات في النص ده');c.lat=ll.lat;c.lng=ll.lng;c.approx=0;if(/^https?:/i.test(t))c.link=t;save();toast('تم حفظ الموقع');render()}
-const wp=c=>c.lat!=null?c.lat+','+c.lng:[c.shop||c.name,c.village,c.mz,'بني سويف'].filter(Boolean).join(' ');
-function routeHref(l){l=l.slice(0,3);const w=l.slice(0,-1).map(wp).join('|');return 'https://www.google.com/maps/dir/?api=1&travelmode=driving'+originQ()+'&destination='+encodeURIComponent(wp(l[l.length-1]))+(w?'&waypoints='+encodeURIComponent(w):'')}
+const gmDir=(o,pts)=>'https://www.google.com/maps/dir/'+[o||''].concat(pts).map(x=>encodeURIComponent(String(x)).replace(/%2C/g,',').replace(/%20/g,'+')).join('/')+'/';
+const wp=c=>c.lat!=null?(+c.lat).toFixed(6)+','+(+c.lng).toFixed(6):[c.shop||c.name,c.village,c.mz,'بني سويف'].filter(Boolean).join(' ');
+function routeHref(l){l=l.slice(0,3);return gmDir(originV(),l.map(wp))}
 function plot(l){
  if(!l.length)return '<div class="card mu">لسه مفيش عملاء ليهم إحداثيات. افتح عميل واضغط "إضافة إحداثيات الموقع".</div>';
  const grp=Object.values(l.reduce((m,c)=>{const k=c.lat.toFixed(4)+','+c.lng.toFixed(4);(m[k]=m[k]||[]).push(c);return m},{}));
@@ -1162,8 +1163,7 @@ function polish(){
 const _render=render;render=function(){_render();polish()};
 document.addEventListener('click',e=>{if(e.target.closest('button,.tile,.chip,a.icobtn'))hap(8)},true);
 let TOUR=[],LM=null;
-function gmUrls(st){const o=[];for(let i=0;i<st.length;i+=3){const ch=st.slice(i,i+3),d=wp(ch[ch.length-1]),w=ch.slice(0,-1).map(wp).join('|');
-  o.push('https://www.google.com/maps/dir/?api=1&travelmode=driving'+(i?'&origin='+encodeURIComponent(wp(st[i-1])):originQ())+'&destination='+encodeURIComponent(d)+(w?'&waypoints='+encodeURIComponent(w):''))}return o}
+function gmUrls(st){const o=[];for(let i=0;i<st.length;i+=3){const ch=st.slice(i,i+3).map(wp);o.push(gmDir(i?wp(st[i-1]):originV(),ch))}return o}
 function gmLinks(st){const u=gmUrls(st);return u.map((x,i)=>`<a class="btn" target="_blank" rel="noopener" href="${e(x)}">🧭 ${u.length>1?'الجزء '+(i+1)+' من '+u.length+' • ':''}افتح في جوجل مابس (${Math.min(3,st.length-i*3)} عميل)</a>`).join('')}
 function tourStops(list){const cs=list.flatMap(x=>x.cs),rest=cs.filter(c=>c.lat!=null),n=cs.filter(c=>c.lat==null),r=[];let cur=homeLL();
   if(!cur&&rest.length){cur=rest.shift();r.push(cur)}
