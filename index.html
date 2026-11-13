@@ -259,7 +259,7 @@ function open_(c){v={tab:'cust',cid:c};render()}
 function balHTML(b){return b>0?`<span class="red">عليه ${M(b)}</span>`:b<0?`<span class="grn">ليه ${M(-b)}</span>`:'<span class="mu">مسدّد ✓</span>'}
 const back=(f,l)=>`<div class="topbar"><button class="backbtn" onclick="${f}">→ ${l||'رجوع'}</button></div>`;
 function hp(s){let h=5381;for(const c of String(s))h=(h*33+c.charCodeAt(0))>>>0;return String(h)}
-function lockView(){return `<h2>🔒 مندوب المبيعات</h2><input id="pin" type="password" inputmode="numeric" placeholder="الرقم السري" onkeydown="if(event.key==='Enter')unlock()"><button class="btn" onclick="unlock()">دخول</button>`}
+function lockView(){return `<h2>🔒 مندوب المبيعات</h2><input id="pin" type="password" inputmode="numeric" placeholder="الرقم السري" onkeydown="if(event.key==='Enter')unlock()"><button class="btn" onclick="unlock()">دخول</button><details class="mu" style="margin-top:18px"><summary>نسيت الرقم السري؟</summary><p style="margin-top:8px">بياناتك لسه محفوظة على الجهاز وماضاعتش، لكن الرقم السري نفسه مش بيترجع ومفيش طريقة نعرضه بيها. الحل الآمن: لو عندك ملف نسخة احتياطية، امسح بيانات الموقع من إعدادات المتصفح وبعدها استرجع الملف من (الإعدادات ← استرجاع من ملف). ومتمسحش أي حاجة قبل ما تتأكد إن النسخة الاحتياطية موجودة وتفتح.</p></details>`}
 function unlock(){if(hp($('pin').value)===S.pin){unl=true;render()}else toast('الرقم غلط')}
 function setPin(){const p=prompt('اكتب الرقم السري الجديد:');if(!p)return;S.pin=hp(p);save();unl=true;toast('تم تفعيل القفل');render()}
 function rmPin(){S.pin='';save();toast('تم إلغاء القفل');render()}
@@ -278,6 +278,7 @@ function moreView(){return screenHead('المزيد','الأدوات والإع�
     <button class="tile" onclick="v={tab:'today',pg:'msg'};render()"><span class="ti">💬</span>رسائل جماعية</button>
     <button class="tile" onclick="v={tab:'cust',imp:1};render()"><span class="ti">📥</span>استيراد عملاء</button>
     <button class="tile" onclick="v={tab:'more',imgs:1};render()"><span class="ti">🖼️</span>الأسعار والكتالوج</button>
+    <button class="tile" onclick="v={tab:'more',exp:1};render()"><span class="ti">📤</span>تصدير Excel / CSV</button>
     <button class="tile" onclick="v={tab:'today',pg:'set'};render()"><span class="ti">⚙️</span>الإعدادات والنسخ</button>
   </div>
   <p class="mu" style="margin:14px 2px">كل البيانات محفوظة على الموبايل ده. اعمل نسخة احتياطية من الإعدادات بانتظام.</p>`}
@@ -286,12 +287,13 @@ function render(){
   const navOf={cov:'cov',cust:'cust',today:'today',ai:'ai',more:'more',map:'more',prod:'more'};
   const act=v.pg==='set'?'more':v.pg?'today':(navOf[v.tab]||'today');
   ['cov','cust','today','ai','more'].forEach(t=>{const b=$('n-'+t);if(b)b.classList.toggle('on',act===t)});
-  const sub=!unl||!!(v.cid||v.order||v.cedit||v.addc||v.pf||v.stmt||v.inv||v.imp||v.bulk||v.pick);
+  const sub=!unl||!!(v.cid||v.order||v.cedit||v.addc||v.pf||v.stmt||v.inv||v.imp||v.bulk||v.pick||v.exp);
   const nv=$('nav');if(nv)nv.classList.toggle('hide',sub);
   let h;
   if(!unl)h=lockView();
   else if(v.imp)h=impView();
   else if(v.imgs)h=imgView();
+  else if(v.exp&&window.EXP)h=EXP.screen();
   else if(v.bulk)h=bulkView();
   else if(v.pick)h=pickView();
   else if(v.pg==='debts')h=debtsView();
@@ -583,7 +585,7 @@ async function fillApprox(id){const c=C(id);if(!c||c.lat!=null||!c.village)retur
   const r=await villageLL(c.village,c.mz),c2=C(id);if(!c2||c2.lat!=null)return;
   if(r){c2.lat=r.lat;c2.lng=r.lng;c2.approx=1;c2.acc=0;save();toast('اتحدد موقع '+c2.village+' تقريبيًا');if(v.cid===id||(v.tab==='cust'&&!v.cedit&&!v.addc&&!v.imp&&!v.order))render()}
   else toast('مالقيتش '+c2.village+' على الخريطة. سجّل موقعه بإيدك من صفحة العميل')}
-function tourHref(g){let st=g.slice(0,10).map(x=>{const c=gll(x);return c?{ll:c.lat+','+c.lng,lat:c.lat,lng:c.lng}:{ll:[x.vl,x.mz==='بدون مركز'?'':x.mz,'بني سويف مصر'].filter(Boolean).join(' ')}});
+function tourHref(g){let st=g.slice(0,3).map(x=>{const c=gll(x);return c?{ll:c.lat+','+c.lng,lat:c.lat,lng:c.lng}:{ll:[x.vl,x.mz==='بدون مركز'?'':x.mz,'بني سويف مصر'].filter(Boolean).join(' ')}});
   if(st.length>2&&st.every(s=>s.lat!==undefined)){const H=homeLL(),r=[];let cur=H;if(!cur){cur=st.shift();r.push(cur)}while(st.length){let bi=0,bd=1e9;st.forEach((s,i)=>{const d=hav(cur,s);if(d<bd){bd=d;bi=i}});cur=st.splice(bi,1)[0];r.push(cur)}st=r}
   const dest=st[st.length-1],w=st.slice(0,-1).map(s=>s.ll).join('|');
   return 'https://www.google.com/maps/dir/?api=1&travelmode=driving'+originQ()+'&destination='+encodeURIComponent(dest.ll)+(w?'&waypoints='+encodeURIComponent(w):'')}
@@ -1061,7 +1063,7 @@ let rad=2,mk='';const MC=['#2e7d32','#1565c0','#ef6c00','#8e24aa','#c62828','#00
 function parseLL(s){s=(s||'').trim();const m=s.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/)||s.match(/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/)||s.match(/[?&](?:q|ll|query|destination)=(-?\d+\.\d+)(?:,|%2C)(-?\d+\.\d+)/i)||s.match(/^(-?\d+\.\d+)\s*[,،]\s*(-?\d+\.\d+)$/);return m?{lat:+m[1],lng:+m[2]}:null}
 function setLoc(id){const t=(prompt('الصق إحداثيات المكان أو رابط طويل من الخرائط (مثال: 28.9101, 31.0902)')||'').trim();if(!t)return;const c=C(id),ll=parseLL(t);if(!ll)return toast('مش لاقي إحداثيات في النص ده');c.lat=ll.lat;c.lng=ll.lng;c.approx=0;if(/^https?:/i.test(t))c.link=t;save();toast('تم حفظ الموقع');render()}
 const wp=c=>c.lat!=null?c.lat+','+c.lng:[c.shop||c.name,c.village,c.mz,'بني سويف'].filter(Boolean).join(' ');
-function routeHref(l){l=l.slice(0,10);const w=l.slice(0,-1).map(wp).join('|');return 'https://www.google.com/maps/dir/?api=1&travelmode=driving'+originQ()+'&destination='+encodeURIComponent(wp(l[l.length-1]))+(w?'&waypoints='+encodeURIComponent(w):'')}
+function routeHref(l){l=l.slice(0,3);const w=l.slice(0,-1).map(wp).join('|');return 'https://www.google.com/maps/dir/?api=1&travelmode=driving'+originQ()+'&destination='+encodeURIComponent(wp(l[l.length-1]))+(w?'&waypoints='+encodeURIComponent(w):'')}
 function plot(l){
  if(!l.length)return '<div class="card mu">لسه مفيش عملاء ليهم إحداثيات. افتح عميل واضغط "إضافة إحداثيات الموقع".</div>';
  const grp=Object.values(l.reduce((m,c)=>{const k=c.lat.toFixed(4)+','+c.lng.toFixed(4);(m[k]=m[k]||[]).push(c);return m},{}));
@@ -1076,8 +1078,8 @@ function mapView(){
  const cl=near(w);
  return `<h2>العملاء على الخريطة</h2><select onchange="mk=this.value;render()"><option value="">كل المراكز</option>${MZ.map(m=>`<option${m===mk?' selected':''}>${m}</option>`).join('')}</select>${plot(w.concat(vp))}${all.length>w.length?`<p class="mu">${all.length-w.length} عميل من غير إحداثيات مش ظاهرين في الرسم</p>`:''}
  <h2>عملاء جمب بعض</h2><select onchange="rad=+this.value;render()">${[1,2,5,10].map(r=>`<option value="${r}"${r===rad?' selected':''}>في حدود ${r} كم</option>`).join('')}</select>
- ${cl.map(x=>`<div class="card"><b>${x.length} عملاء قريبين</b>${x.map(rowC).join('')}<a class="btn t" target="_blank" rel="noopener" style="margin:8px 0 0" href="${e(routeHref(x))}">🧭 مسار لكلهم (أول 10)</a></div>`).join('')||'<p class="mu">مفيش عملاء قريبين في النطاق ده، أو لسه مضفتش إحداثيات.</p>'}
- <h2>حسب المركز</h2>${Object.entries(g).sort((a,b)=>b[1].length-a[1].length).map(([k,x])=>`<div class="card"><b>${e(k)}</b> <span class="mu">(${x.length})</span>${x.map(rowC).join('')}<a class="btn t" target="_blank" rel="noopener" style="margin:8px 0 0" href="${e(routeHref(x))}">🧭 مسار لعملاء ${e(k)} (أول 10)</a></div>`).join('')||'<p class="mu">ضيف عملاء الأول.</p>'}`}
+ ${cl.map(x=>`<div class="card"><b>${x.length} عملاء قريبين</b>${x.map(rowC).join('')}<a class="btn t" target="_blank" rel="noopener" style="margin:8px 0 0" href="${e(routeHref(x))}">🧭 مسار لأول 3 منهم</a></div>`).join('')||'<p class="mu">مفيش عملاء قريبين في النطاق ده، أو لسه مضفتش إحداثيات.</p>'}
+ <h2>حسب المركز</h2>${Object.entries(g).sort((a,b)=>b[1].length-a[1].length).map(([k,x])=>`<div class="card"><b>${e(k)}</b> <span class="mu">(${x.length})</span>${x.map(rowC).join('')}<a class="btn t" target="_blank" rel="noopener" style="margin:8px 0 0" href="${e(routeHref(x))}">🧭 مسار لعملاء ${e(k)} (أول 3)</a></div>`).join('')||'<p class="mu">ضيف عملاء الأول.</p>'}`}
 // ===== أسعار فورتس + مخزون افتتاحي =====
 const PL2=[
  ['فولتان سيرس',[['400 جرام',275],['800 جرام',530]]],
@@ -1160,9 +1162,9 @@ function polish(){
 const _render=render;render=function(){_render();polish()};
 document.addEventListener('click',e=>{if(e.target.closest('button,.tile,.chip,a.icobtn'))hap(8)},true);
 let TOUR=[],LM=null;
-function gmUrls(st){const o=[];for(let i=0;i<st.length;i+=9){const ch=st.slice(i,i+9),d=wp(ch[ch.length-1]),w=ch.slice(0,-1).map(wp).join('|');
+function gmUrls(st){const o=[];for(let i=0;i<st.length;i+=3){const ch=st.slice(i,i+3),d=wp(ch[ch.length-1]),w=ch.slice(0,-1).map(wp).join('|');
   o.push('https://www.google.com/maps/dir/?api=1&travelmode=driving'+(i?'&origin='+encodeURIComponent(wp(st[i-1])):originQ())+'&destination='+encodeURIComponent(d)+(w?'&waypoints='+encodeURIComponent(w):''))}return o}
-function gmLinks(st){const u=gmUrls(st);return u.map((x,i)=>`<a class="btn" target="_blank" rel="noopener" href="${e(x)}">🧭 ${u.length>1?'الجزء '+(i+1)+' من '+u.length+' • ':''}افتح في جوجل مابس (${Math.min(9,st.length-i*9)} عميل)</a>`).join('')}
+function gmLinks(st){const u=gmUrls(st);return u.map((x,i)=>`<a class="btn" target="_blank" rel="noopener" href="${e(x)}">🧭 ${u.length>1?'الجزء '+(i+1)+' من '+u.length+' • ':''}افتح في جوجل مابس (${Math.min(3,st.length-i*3)} عميل)</a>`).join('')}
 function tourStops(list){const cs=list.flatMap(x=>x.cs),rest=cs.filter(c=>c.lat!=null),n=cs.filter(c=>c.lat==null),r=[];let cur=homeLL();
   if(!cur&&rest.length){cur=rest.shift();r.push(cur)}
   while(rest.length){let bi=0,bd=1e9;rest.forEach((q,i)=>{const d=hav(cur,q);if(d<bd){bd=d;bi=i}});cur=rest.splice(bi,1)[0];r.push(cur)}
@@ -3593,6 +3595,7 @@ try{render()}catch(_){try{polish()}catch(_){}}
 </script>
 <script src="js/cloud.js?v=2"></script>
 <script src="js/ai-gw.js?v=9"></script>
+<script src="js/export.js?v=1"></script>
 <script src="js/route.js?v=7"></script>
 <script src="js/wa.js?v=1"></script>
 </body>
