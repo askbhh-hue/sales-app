@@ -239,12 +239,13 @@ let bootReady=!!localStorage.getItem(K)||!window.indexedDB;setTimeout(()=>{bootR
 var LASTJ='';let save=()=>{if(!bootReady)return;const t=Date.now();let ok=true;try{S.__ts=t;S.dv=(S.dv||0)+1;LASTJ=JSON.stringify(S);localStorage.setItem(K,LASTJ);localStorage.setItem('fs_ts',String(t))}catch(_){ok=false}if(typeof idbSched==='function')idbSched();else if(!ok)toast('تعذر الحفظ على المتصفح');if(!ok&&!save.w&&typeof idbSched==='function'){save.w=1;toast('ذاكرة المتصفح امتلت، بيتحفظ في قاعدة البيانات الداخلية')}};
 let uidc=0;const uid=()=>Date.now().toString(36)+(uidc++).toString(36)+Math.random().toString(36).slice(2,6);
 const e=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const js=s=>e(String(s==null?'':s).replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/[\r\n]+/g,' '));
 let M=n=>(Math.round(n*100)/100).toLocaleString('en-US')+' ج';
 const Mraw=n=>(Math.round(n*100)/100).toLocaleString('en-US')+' ج';
 const num=s=>parseFloat(String(s??'').replace(/[٠-٩]/g,d=>'٠١٢٣٤٥٦٧٨٩'.indexOf(d)).replace('٫','.').replace(',','.'));
 const $=i=>document.getElementById(i);
 const P=i=>S.products.find(p=>p.id===i),C=i=>S.customers.find(c=>c.id===i);
-const bal=c=>S.ledger.filter(l=>l.cid===c).reduce((s,l)=>s+(l.type==='OWES'?l.amt:-l.amt),0);
+const bal=c=>{let s=0;const L=S.ledger;for(let i=0;i<L.length;i++){const l=L[i];if(l.cid===c)s+=l.type==='OWES'?l.amt:-l.amt}return s};
 const day0=()=>{const d=new Date();d.setHours(0,0,0,0);return d.getTime()};
 const dt=t=>new Date(t).toLocaleDateString('en-GB');
 const r2=n=>Math.round(n*100)/100;
@@ -280,6 +281,7 @@ function moreView(){return screenHead('المزيد','الأدوات والإع�
     <button class="tile" onclick="v={tab:'today',pg:'set'};render()"><span class="ti">⚙️</span>الإعدادات والنسخ</button>
   </div>
   <p class="mu" style="margin:14px 2px">كل البيانات محفوظة على الموبايل ده. اعمل نسخة احتياطية من الإعدادات بانتظام.</p>`}
+var _rk=null;
 function render(){
   const navOf={cov:'cov',cust:'cust',today:'today',ai:'ai',more:'more',map:'more',prod:'more'};
   const act=v.pg==='set'?'more':v.pg?'today':(navOf[v.tab]||'today');
@@ -304,7 +306,8 @@ function render(){
   else if(v.cid)h=custView();
   else if(v.order)h=orderView();
   else h=v.tab==='cust'?custList():v.tab==='cov'?covView():v.tab==='prod'?prodView():v.tab==='map'?mapView():v.tab==='ai'?aiView():v.tab==='more'?moreView():todayView();
-  $('main').innerHTML=h;window.scrollTo(0,0);
+  const _k=JSON.stringify(v),_y=window.scrollY;$('main').innerHTML=h;
+  try{window.scrollTo(0,_rk===_k?_y:0)}catch(_){}_rk=_k;
 }
 function summary(){const s=day0(),e2=s+864e5,inr=t=>t>=s&&t<e2;return{v:S.visits.filter(x=>inr(x.t)&&x.auto!==5).length,o:S.orders.filter(x=>!x.cx&&inr(x.t)).length,c:S.ledger.filter(x=>x.type==='PAID'&&inr(x.t)).reduce((a,x)=>a+x.amt,0)}}
 function todayView(){
@@ -392,7 +395,7 @@ function custCards(q){const sv=seenSet(),l=custFiltered(q);
   return l.map(c=>{const b=bal(c.id),seen=sv.has(c.id),sub=[c.shop,c.village,c.mz].filter(Boolean).join(' • ')||'—';
     const pill=b>0?`<span class="pill red">عليه ${e(M(b))}</span>`:b<0?`<span class="pill grn">ليه ${e(M(-b))}</span>`:'';
     return `<div class="item"><button class="itm-main" onclick="open_('${c.id}')">${avatar(c.name,c.mz)}<span class="grow"><span class="nm">${e(c.name)}</span><span class="sb">${e(sub)}${seen?'':' • 🔴 لم يُزر'}</span></span>${pill}</button>${c.phone?`<a class="icobtn" href="tel:${e(c.phone)}" aria-label="اتصال ب${e(c.name)}">📞</a>`:''}</div>`}).join('')}
-function fc(q){cq=q;const el=$('list');if(el)el.innerHTML=custCards(q)}
+var _fct;function fc(q){cq=q;clearTimeout(_fct);_fct=setTimeout(()=>{const el=$('list');if(el)el.innerHTML=custCards(cq)},180)}
 function custList(){const cnt=S.customers.length,debts=S.customers.filter(c=>bal(c.id)>0).length,sv=seenSet(),nev=S.customers.filter(c=>!sv.has(c.id)).length;
   const chip=(k,l,n)=>`<button class="chip${cfl===k?' on':''}" onclick="cfl='${k}';cnv=0;render()">${l}${n!==undefined?' ('+n+')':''}</button>`;
   return screenHead('العملاء',cnt+' عميل')+`<div class="row" style="margin-bottom:10px;gap:8px"><button class="btn" style="flex:1;margin:0" onclick="v={tab:'cust',addc:1};render()">➕ عميل جديد</button><button class="btn t" style="flex:none;width:auto;margin:0;min-width:56px" onclick="v={tab:'cust',imp:1};render()" aria-label="استيراد من جهات الاتصال">📥</button></div>
@@ -534,7 +537,7 @@ function prodList(){const l=S.products.filter(p=>(pcat==='all'||p.cat===pcat)&&(
     return `<div class="item" style="display:block"><div class="shrow"><div style="min-width:0"><div class="nm">${e(p.name)}</div><div class="sb">${(p.price>0?e(M(p.price))+' / '+e(p.unit):'<span class="amb">⚠ حدّد السعر</span> • '+e(p.unit))+(p.sz?' • '+e(p.sz):'')}</div></div>${st}</div>${p.ai?`<div class="mu" style="font-size:13px;margin-top:6px">${e(p.ai.length>90?p.ai.slice(0,90)+'…':p.ai)}</div>`:''}<div class="shrow" style="margin-top:10px"><div class="bar"><span style="width:${pct}%"></span></div><div class="acts"><b style="min-width:40px;text-align:center">${e(r2(p.stock))}</b><button class="qb" onclick="restock('${p.id}')" aria-label="زوّد المخزون">＋</button><button class="qb" onclick="v={tab:'prod',pf:'${p.id}'};render()" aria-label="تعديل">✎</button></div></div></div>`};
   if(pcat!=='all')return l.map(card).join('');
   return CATS.map(c=>{const g=l.filter(p=>p.cat===c);return g.length?`<h2>${c}</h2>`+g.map(card).join(''):''}).join('')+l.filter(p=>CATS.indexOf(p.cat)<0).map(card).join('')}
-function pqs(q){pq=q;const el=$('plist2');if(el)el.innerHTML=prodList()}
+var _pqt;function pqs(q){pq=q;clearTimeout(_pqt);_pqt=setTimeout(()=>{const el=$('plist2');if(el)el.innerHTML=prodList()},180)}
 function prodView(){const low=S.products.filter(isLow);
   return screenHead('المنتجات',S.products.length+' منتج'+(low.length?' • <span class="red">'+low.length+' قرب يخلص</span>':''))+`${S.v2Note?`<div class="card"><b>🏷 اتحدّثت الأسعار من قوائم فورتس</b><div class="mu" style="margin:6px 0">اتحدّث ${S.v2Note.upd} صنف/مقاس واتضاف ${S.v2Note.add}. المخزون اتحط 5 لكل صنف (بوتاسكو جرين 16) بعدد الكراتين. لو عايزه بالعبوات اضغط ✎ على الصنف وعدّل الرقم. سنتامورا أكس مالوش سعر في القوائم.</div><button class="btn t sm" onclick="S.v2Note=null;save();render()">تمام</button></div>`:''}${S.seedNote?`<div class="card"><b>📦 اتضافت ${S.seedNote} منتج من الكتالوج</b><div class="mu" style="margin:6px 0">أسمدة ومبيدات، والتركيب مكتوب تحت كل منتج. الأسعار والكميات مش في الصور فكلها صفر، اضغط ✎ وحدّد السعر.</div><button class="btn t sm" onclick="S.seedNote=0;save();render()">تمام</button></div>`:''}
   <details class="card"><summary>➕ منتج جديد</summary>${prodFields({})}<button class="btn" onclick="saveP()">حفظ المنتج</button></details>
@@ -921,7 +924,7 @@ function aiView(){const cloud=!!aiKey()&&!!S.aiOk;
   return `<h2>🤖 المساعد</h2>
   <p class="mu" style="margin-top:-8px">${aiStatus()}</p>
   <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px">${AI_CHIPS.map((c,i)=>`<button class="btn t sm" style="width:auto;display:inline-block;margin:0" onclick="aiQuick(${i})">${e(c)}</button>`).join('')}</div>
-  <div id="aichat">${aiMsgs.map(m=>`<div class="card" style="${m.me?'margin-right:24px;background:var(--pr);color:var(--prt)':'margin-left:24px'}">${m.h}</div>`).join('')}</div>
+  <div id="aichat">${aiMsgs.length>60?'<div class="mu" style="text-align:center;margin:4px 0">… '+(aiMsgs.length-60)+' رسالة أقدم مخفية</div>':''}${aiMsgs.slice(-60).map(m=>`<div class="card" style="${m.me?'margin-right:24px;background:var(--pr);color:var(--prt)':'margin-left:24px'}">${m.h}</div>`).join('')}</div>
   <div class="row" style="align-items:stretch"><input id="aiin" placeholder="اكتب سؤالك..." onkeydown="if(event.key==='Enter')aiSend()"><button class="btn t" id="aimic" style="flex:none;width:auto;padding:0 16px;margin:0 0 10px" onclick="axVoice('tab')" aria-label="أمر صوتي">🎤</button><button class="btn" style="flex:none;width:auto;padding:0 18px;margin:0 0 10px" onclick="aiSend()">إرسال</button></div>
   <button class="btn t sm" onclick="aiClear()">🧹 امسح المحادثة</button>`}
 function aiSave(){const typed=String((($('aik')||{}).value)||'').trim();
@@ -1447,7 +1450,7 @@ function axCtxSet(cid,pid){if(cid)AXCUR.cid=cid;if(pid)AXCUR.pid=pid;AXCUR.t=Dat
 function axCtxValid(){return AXCUR.t&&Date.now()-AXCUR.t<36e5}
 function axLog(rec){(S.reqLog=S.reqLog||[]).push(Object.assign({t:Date.now()},rec));if(S.reqLog.length>300)S.reqLog=S.reqLog.slice(-300);}
 try{localStorage.removeItem('fs_reqlog')}catch(_){}
-const axPick=(list,q,what)=>`قصدك مين؟ ${list.slice(0,5).map(c=>`<button class="btn t sm" onclick="agAsk('${e(q).replace(/'/g,'')} ${e(c.name).replace(/'/g,'')}')">${e(c.name)}${c.village?' - '+e(c.village):''}</button>`).join(' ')}`;
+const axPick=(list,q,what)=>`قصدك مين؟ ${list.slice(0,5).map(c=>`<button class="btn t sm" onclick="agAsk('${js(q)} ${js(c.name)}')">${e(c.name)}${c.village?' - '+e(c.village):''}</button>`).join(' ')}`;
 function axTail(q,re){const m=String(q).match(re);return m?m[1].trim():''}
 function axParse(q,n){
   if(axCtxValid()&&AXCUR.cid&&/^(و|ثم)?\s*(سجله|سجلها|احفظه|تمت|خلصت|زرته)/.test(n)&&!axCust(n).length){const c=C(AXCUR.cid);if(c)return axNew('visit',{cid:c.id},'زيارة لـ '+e(c.name)+' (آخر عميل):<br>')}
@@ -1502,7 +1505,7 @@ function axParse(q,n){
 const AXID=Date.now();const axB=(l,f,t)=>`<button class="btn ${t?'t ':''}sm" onclick="${f}">${l}</button>`;
 function axScanData(){const I=[],now=Date.now();
   S.products.filter(p=>p.stock<0).forEach(p=>I.push({k:'neg',t:'مخزون سالب: '+e(p.name)+' ('+p.stock+')',b:axB('صفّره',`axPost('editProd',{pid:'${p.id}',field:'stock',val:0})`)}));
-  S.products.filter(p=>!(p.price>0)).forEach(p=>I.push({k:'price',t:'منتج من غير سعر: '+e(p.name),b:axB('اضبط السعر',`agAsk('غير سعر ${e(p.name).replace(/'/g,'')} ل ')`,1)}));
+  S.products.filter(p=>!(p.price>0)).forEach(p=>I.push({k:'price',t:'منتج من غير سعر: '+e(p.name),b:axB('اضبط السعر',`agAsk('غير سعر ${js(p.name)} ل ')`,1)}));
   const nm={};S.products.forEach(p=>{(nm[nk(p.name)]=nm[nk(p.name)]||[]).push(p)});Object.values(nm).filter(l=>l.length>1).forEach(l=>I.push({k:'dprod',t:'اسم منتج مكرر: '+e(l[0].name)+' ('+l.length+' مرات)',b:''}));
   S.customers.forEach(c=>{if(c.phone&&!/^201[0125]\d{8}$/.test(waNum(c.phone)))I.push({k:'phone',t:'رقم تليفون غريب: '+e(c.name)+' ('+e(c.phone)+')',b:axB('افتح',`open_('${c.id}')`,1)})});
   const dg=dupGroups();if(dg.length)I.push({k:'dup',t:dg.length+' مجموعة عملاء مكررين (نفس الرقم أو الاسم)',b:axB('راجعهم',"agClose();v={tab:'map',dup:1};render()")});
@@ -1840,7 +1843,7 @@ const AXCK='fs_ai_cfg';
 function axCfg(){try{return JSON.parse(localStorage.getItem(AXCK))}catch(_){return null}}
 {const p0=aiProv,m0=aiModel;aiProv=function(){const c=axCfg();return c&&c.mode==='openai'?'openai':p0()};aiModel=function(){const c=axCfg();return c&&c.mode==='openai'?(c.model||''):m0()}}
 AXA.sendMsg={D:p=>{const c=C(p.cid);return{ic:'💬',risk:'low',t:'رسالة واتساب لـ '+e(c.name),lines:['<div class="msgp">'+e(p.text)+'</div>','اضغط نفّذ وهيفتح واتساب والرسالة جاهزة. إنت اللي بتدوس إرسال.'],f:[{k:'text',l:'نص الرسالة'}]}},
- A:p=>{const c=C(p.cid);if(!c)return{err:'العميل مش موجود'};const id=uid();(S.msgLog=S.msgLog||[]).push({id,cid:p.cid,t:Date.now(),ch:'wa'});try{window.open(wa(c.phone,p.text),'_blank')}catch(_){}return{mid:id}},U:null};
+ A:p=>{const c=C(p.cid);if(!c)return{err:'العميل مش موجود'};const id=uid();(S.msgLog=S.msgLog||[]).push({id,cid:p.cid,t:Date.now(),ch:'wa'});try{window.open(wa(c.phone,p.text),'_blank','noopener,noreferrer')}catch(_){}return{mid:id}},U:null};
 const AXPRE={google:{n:'Gemini',mode:'google',model:'gemini-2.5-flash',hint:'المفتاح من Google AI Studio.'},anthropic:{n:'Claude',mode:'anthropic',model:'claude-haiku-5-5',hint:'المفتاح بيبدأ بـ sk-ant.'},
  openrouter:{n:'OpenRouter',mode:'openai',base:'https://openrouter.ai/api/v1',model:'',hint:'مفتاح واحد لنماذج كتير (DeepSeek وQwen وKimi وGLM). اختار اسم الموديل من openrouter.ai/models (الاسم المجاني بينتهي بـ :free وبيتغيّر). الحد المجاني محدود يوميًا.'},
  deepseek:{n:'DeepSeek',mode:'openai',base:'https://api.deepseek.com',model:'deepseek-chat',hint:'بيانات الطلب بتروح لسيرفرات DeepSeek. اسم الموديل ممكن يتغيّر، راجع صفحتهم. لو الاتصال فشل من المتصفح ممكن يكون CORS، جرّب OpenRouter.'},
@@ -2024,7 +2027,7 @@ function axToggle(k){S[k]=!S[k];save();axMode();render();toast(({outdoor:'وضع
 {const m0=M;M=n=>S.priv?'••••':m0(n)}
 function axQbar(){let b=$('qbar');if(!b){b=document.createElement('div');b.id='qbar';document.body.appendChild(b)}if(!S.oneHand||!unl){b.innerHTML='';return}
   const c=v.cid&&C(v.cid),I=(ic,t)=>'<span style="font-size:20px">'+ic+'</span>'+t;
-  b.innerHTML=c?`${c.phone?`<a href="tel:${e(c.phone)}">${I('📞','اتصال')}</a>`:''}<a target="_blank" rel="noopener" href="${e(navHref(c))}">${I('🧭','وصّلني')}</a><button onclick="axStep('visit',{cid:'${c.id}'},false);save();toast('اتسجلت زيارة');render()">${I('📍','زيارة')}</button><button class="s" onclick="agOpen();$('agi').value='حصّل من ${e(c.name).replace(/'/g,'')} ';$('agi').focus()">${I('💵','تحصيل')}</button>`
+  b.innerHTML=c?`${c.phone?`<a href="tel:${e(c.phone)}">${I('📞','اتصال')}</a>`:''}<a target="_blank" rel="noopener" href="${e(navHref(c))}">${I('🧭','وصّلني')}</a><button onclick="axStep('visit',{cid:'${c.id}'},false);save();toast('اتسجلت زيارة');render()">${I('📍','زيارة')}</button><button class="s" onclick="agOpen();$('agi').value='حصّل من ${js(c.name)} ';$('agi').focus()">${I('💵','تحصيل')}</button>`
    :`<button onclick="agDo('أقرب 10 عملاء ليا')">${I('📍','أقرب عميل')}</button><button onclick="go('cov')">${I('🛣','الزيارات')}</button><button class="s" onclick="v={tab:'map',hub:'exp'};render()">${I('🧾','مصروف')}</button><button class="s" onclick="v={tab:'map',hub:1};render()">${I('🧰','أدوات')}</button>`}
 let axHid=0;document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')axHid=Date.now();else{if(S.pin&&S.alock>0&&axHid&&Date.now()-axHid>S.alock*6e4){unl=false;render()}axHid=0;if(S.prox)axProxStart()}});
 let axPxT=null;function axProxStart(){clearInterval(axPxT);if(!S.prox)return;axProxTick();axPxT=setInterval(()=>{if(document.visibilityState==='visible')axProxTick()},40000)}
@@ -2095,7 +2098,7 @@ function axCropNow(m){m=m||new Date().getMonth()+1;const out=[];AXCAL.forEach(c=
    const recs=[];const seen=new Set();s[3].forEach(nu=>{const pat=AXNU[nu]||nu;S.products.filter(p=>axHasAlt(anorm(p.name+' '+(p.ai||'')),pat)&&!seen.has(p.id)).sort((a,b)=>(b.stock>0)-(a.stock>0)).slice(0,2).forEach(p=>{seen.add(p.id);recs.push(p)})});
    out.push({crop:c.k,stage:s[1],adv:s[2],cus,vil,recs:recs.slice(0,4)})})});return out.sort((a,b)=>b.cus.length-a.cus.length)}
 function axCropHtml(){const L=axCropNow(),mn=new Date().toLocaleDateString('ar-EG',{month:'long'});if(!L.length)return 'مفيش مواسم رئيسية مسجّلة للشهر ده.';
-  return `🌾 <b>موسم ${mn} (بني سويف)</b> <span class="mu">— مواعيد تقريبية، راجع الإرشاد الزراعي لمنطقتك</span>`+L.map(x=>`<div class="item" style="display:block"><div class="nm">${e(x.crop)} — ${e(x.stage)}</div><div class="sb" style="white-space:normal">${e(x.adv)}</div>${x.cus.length?`<div class="axl">👥 ${x.cus.length} عميل بيزرعوه: ${Object.entries(x.vil).slice(0,4).map(([k,n])=>e(k)+' ('+n+')').join('، ')}</div>`:'<div class="mu">مفيش عميل مسجّل له المحصول ده (املا خانة المحصول في بيانات العميل)</div>'}${x.recs.length?`<div class="axl">من أصنافك: ${x.recs.map(p=>e(p.name)+(p.stock>0?'':' (خلصان)')).join('، ')}</div>`:''}${x.cus.length?`<div class="row" style="margin-top:6px"><button class="btn sm" onclick="axCropMsg('${e(x.crop)}','${e(x.stage)}')">✉️ جهّز رسالة عرض</button></div>`:''}</div>`).join('')}
+  return `🌾 <b>موسم ${mn} (بني سويف)</b> <span class="mu">— مواعيد تقريبية، راجع الإرشاد الزراعي لمنطقتك</span>`+L.map(x=>`<div class="item" style="display:block"><div class="nm">${e(x.crop)} — ${e(x.stage)}</div><div class="sb" style="white-space:normal">${e(x.adv)}</div>${x.cus.length?`<div class="axl">👥 ${x.cus.length} عميل بيزرعوه: ${Object.entries(x.vil).slice(0,4).map(([k,n])=>e(k)+' ('+n+')').join('، ')}</div>`:'<div class="mu">مفيش عميل مسجّل له المحصول ده (املا خانة المحصول في بيانات العميل)</div>'}${x.recs.length?`<div class="axl">من أصنافك: ${x.recs.map(p=>e(p.name)+(p.stock>0?'':' (خلصان)')).join('، ')}</div>`:''}${x.cus.length?`<div class="row" style="margin-top:6px"><button class="btn sm" onclick="axCropMsg('${js(x.crop)}','${js(x.stage)}')">✉️ جهّز رسالة عرض</button></div>`:''}</div>`).join('')}
 function axCropMsg(crop,stage){const x=axCropNow().find(z=>z.crop===crop&&z.stage===stage);if(!x)return;mq=null;mone='';mv='';mt='crop:'+crop;
   mtxt='السلام عليكم يا {الاسم} 🌾 الموسم دلوقتي '+stage+' لمحصول '+crop+(x.recs.length?'، وعندنا '+x.recs.map(p=>p.name).join(' و')+' مناسبين للمرحلة دي':'')+'. تحب أعدّي عليك أو أبعتلك الأسعار؟';agClose();v={tab:'today',pg:'msg'};render()}
 let BC={mode:'order',on:false,list:{},unk:[],last:'',lt:0,stream:null,h5:null,pend:'',ord:''};
@@ -2118,7 +2121,7 @@ function axBcView(){const prods=S.products.slice().sort((a,b)=>a.name.localeComp
   ${BC.pend?`<div class="card"><b>كود جديد: <span dir="ltr">${e(BC.pend)}</span></b><div class="msgf"><select onchange="axBcLink(this.value)"><option value="">اربطه بمنتج...</option>${prods.map(p=>`<option value="${p.id}">${e(p.name)}${p.barcode?' (مربوط)':''}</option>`).join('')}</select></div></div>`:''}
   ${BC.mode==='count'?`<h2>الجرد (${Object.keys(BC.list).length} صنف)</h2>${Object.entries(BC.list).map(([id,n])=>`<div class="item"><span class="grow"><span class="nm">${e(P(id).name)}</span><span class="sb">في النظام ${P(id).stock}</span></span><div class="step"><button onclick="BC.list['${id}']=Math.max(0,BC.list['${id}']-1);render()">−</button><b>${n}</b><button onclick="BC.list['${id}']++;render()">+</button></div></div>`).join('')||'<div class="empty">امسح العبوات وهتتعدّ هنا</div>'}<button class="btn" onclick="axBcApply()">✔ اعتمد الجرد</button><button class="btn t" onclick="BC.list={};render()">مسح</button>`:''}
   ${BC.mode==='order'?`<div class="card"><label class="lb">العميل</label><select onchange="BC.ord=this.value||'';render()">${cOpts(BC.ord||'')}</select><div style="margin-top:8px">السلة: <b>${Object.values(cart).reduce((s,x)=>s+x.q,0)}</b> قطعة</div>${BC.ord?`<button class="btn sm" style="margin-top:8px" onclick="v={tab:'cust',order:'${BC.ord}'};render()">افتح السلة لإتمام الطلب</button>`:''}</div>`:''}
-  ${BC.unk.length?`<h2>أكواد غير مربوطة</h2>${BC.unk.map(c=>`<div class="item"><span class="grow nm" dir="ltr">${e(c)}</span><button class="btn t sm" onclick="BC.mode='link';BC.pend='${e(c)}';BC.unk=BC.unk.filter(x=>x!=='${e(c)}');render()">اربطه</button></div>`).join('')}`:''}`}
+  ${BC.unk.length?`<h2>أكواد غير مربوطة</h2>${BC.unk.map(c=>`<div class="item"><span class="grow nm" dir="ltr">${e(c)}</span><button class="btn t sm" onclick="BC.mode='link';BC.pend='${js(c)}';BC.unk=BC.unk.filter(x=>x!=='${js(c)}');render()">اربطه</button></div>`).join('')}`:''}`}
 let FX={cat:'وقود',amt:'',note:''},FP={cid:'',amt:'',dueS:''},RT={cid:'',items:[{pid:'',qty:1}],reason:'تالف',refund:'credit',restock:false},FB={pid:'',no:'',exp:'',qty:''},STI=null;
 const cOpts=sel=>'<option value="">اختار العميل...</option>'+S.customers.slice().sort((a,b)=>String(a.name).localeCompare(String(b.name),'ar')).map(c=>`<option value="${c.id}"${c.id===sel?' selected':''}>${e(c.name)}${c.village?' - '+e(c.village):''}</option>`).join('');
 const pOpts=sel=>'<option value="">اختار المنتج...</option>'+S.products.slice().sort((a,b)=>String(a.name).localeCompare(String(b.name),'ar')).map(p=>`<option value="${p.id}"${p.id===sel?' selected':''}>${e(p.name)}</option>`).join('');
@@ -2605,7 +2608,7 @@ function axImgReview(SC_){
     return `<div class="axc mid"><div class="axh">💬 لقطة محادثة</div>
       <div class="axl"><b>الملخص:</b><br>${e(SC_.summary||'—')}</div>
       ${SC_.ask?`<div class="axw" style="color:var(--pr)"><b>الطلب المستخرج:</b> ${e(SC_.ask)}</div>
-        <button class="btn sm" style="margin-top:8px" onclick="agAsk('${e(SC_.ask).replace(/'/g,'')}')">🤖 نفّذ الطلب ده</button>`:''}
+        <button class="btn sm" style="margin-top:8px" onclick="agAsk('${js(SC_.ask)}')">🤖 نفّذ الطلب ده</button>`:''}
       <button class="btn t sm" style="margin-top:8px" onclick="SC=null;aiMsgs=aiMsgs.slice(0,-2);aiRender()">✖ إغلاق</button>
     </div>`;
   }
