@@ -1579,10 +1579,21 @@ function axAdvise(n){const crop=AXK.find(c=>c[0].split('|').some(x=>n.includes(a
   const st=crop[1].find(s=>s[0].split('|').some(x=>n.includes(anorm(x)))),L=st?[st]:crop[1];
   const rec=ns=>{const seen=new Set(),out=[];ns.forEach(k=>{const pat=AXNU[k]||k;S.products.filter(p=>axHasAlt(anorm(p.name+' '+(p.ai||'')),pat)&&!seen.has(p.id)).sort((a,b)=>(b.stock>0)-(a.stock>0)).slice(0,2).forEach(p=>{seen.add(p.id);out.push(p)})});return out.slice(0,4)};
   return `🌱 <b>${e(crop[0].split('|')[0])}</b>${st?'':' — برنامج التغذية على المراحل'}`+L.map(s=>{const r=rec(s[3]);return `<div class="axl"><b>${e(s[0].split('|')[0])}:</b> ${s[1]}${r.length?'<br>من أصنافك: '+r.map(p=>e(p.name)+(p.stock>0?' (متاح '+p.stock+')':' (خلصان)')).join('، '):''}</div>`}).join('')+`<span class="mu">إرشاد عام. الكميات تتحدد بتحليل التربة/الورق ونشرة المنتج، وللمبيدات اتبع العبوة وتوصيات مهندس الزراعة.</span>`}
-function axVoice(){const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
-  if(!SR){toast('الميكروفون مش متاح هنا. استخدم ميكروفون الكيبورد 🎤');try{$('agi').focus()}catch(_){}return}
-  const r=new SR();r.lang='ar-EG';r.interimResults=false;r.maxAlternatives=1;const b=$('agmic');b&&b.classList.add('rec');
-  r.onresult=ev=>{const t=ev.results[0][0].transcript;$('agi').value=t;agSend()};r.onerror=()=>toast('مسمعتش كويس، جرّب تاني');r.onend=()=>b&&b.classList.remove('rec');try{r.start()}catch(_){}}
+function axVoice(){
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition,b=$('agmic');
+  const KB='الميكروفون مش شغّال هنا. استخدم ميكروفون الكيبورد 🎤 (تحت على اليمين)';
+  const done=()=>{try{clearTimeout(axVoice._t1);clearTimeout(axVoice._t2)}catch(_){}b&&b.classList.remove('rec');axVoice._r=null};
+  if(axVoice._r){try{axVoice._r.stop()}catch(_){}setTimeout(()=>{if(axVoice._r){try{axVoice._r.abort()}catch(_){}done()}},1500);return}   // 2nd tap = stop
+  if(!SR){toast(KB);try{$('agi').focus()}catch(_){}return}
+  let got=false,started=false;const r=new SR();axVoice._r=r;r.lang='ar-EG';r.interimResults=false;r.maxAlternatives=1;r.continuous=false;
+  b&&b.classList.add('rec');
+  r.onstart=()=>{started=true;try{clearTimeout(axVoice._t1)}catch(_){}};
+  r.onresult=ev=>{got=true;const t=ev.results[0][0].transcript;done();try{$('agi').value=t;agSend()}catch(_){}};
+  r.onerror=ev=>{const c=ev&&ev.error;done();toast(c==='not-allowed'||c==='service-not-allowed'?'الميكروفون مش مسموح. '+KB:c==='no-speech'?'مسمعتش حاجة، جرّب تاني':KB)};
+  r.onend=()=>{const was=axVoice._r===r;done();if(was&&!got)toast('مسمعتش كويس، جرّب تاني')};
+  axVoice._t1=setTimeout(()=>{if(!started){try{r.abort()}catch(_){}done();toast(KB)}},3500);   // never started listening
+  axVoice._t2=setTimeout(()=>{if(!got){try{r.abort()}catch(_){}done();toast('الوقت خلص، جرّب تاني أو استخدم ميكروفون الكيبورد')}},12000);   // never finished
+  try{r.start()}catch(_){done();toast(KB)}}
 function axLogView(){const L=S.axLog||[];
   return back("go('cov')")+`<h2>📜 سجل عمليات المساعد</h2>${(S.reqLog||[]).length?'<div class="card"><b>📊 قياس: '+(S.reqLog||[]).filter(x=>x.k==="exec").length+' منفّذ • '+(S.reqLog||[]).filter(x=>x.k==="undo").length+' تراجع • '+(S.reqLog||[]).filter(x=>x.k==="intent").length+' intent</b></div>':''}<div class="sub">كل حاجة نفّذها المساعد، وتقدر تتراجع عنها.</div>
   <div class="card"><label style="display:flex;gap:10px;align-items:center;font-size:16px"><input type="checkbox" ${S.axAuto?'checked':''} onchange="S.axAuto=this.checked;save()" style="width:24px;height:24px"> ⚡ تنفيذ فوري (من غير كارت) لتسجيل الزيارة بالأوامر الصوتية</label><label style="display:flex;gap:10px;align-items:center;font-size:16px;margin-top:12px"><input type="checkbox" ${S.agAlways?'checked':''} onchange="S.agAlways=this.checked;save()" style="width:24px;height:24px"> 🧠 الوضع الذكي دائمًا: كل طلب يروح للنموذج السحابي (أبطأ، وبيبعت نص طلبك للمزوّد)</label></div>`+
