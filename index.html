@@ -281,7 +281,7 @@ function moreView(){return screenHead('المزيد','الأدوات والإع�
     <button class="tile" onclick="v={tab:'today',pg:'set'};render()"><span class="ti">⚙️</span>الإعدادات والنسخ</button>
   </div>
   <p class="mu" style="margin:14px 2px">كل البيانات محفوظة على الموبايل ده. اعمل نسخة احتياطية من الإعدادات بانتظام.</p>`}
-var _rk=null;
+var _rk=null,_ys={};
 function render(){
   const navOf={cov:'cov',cust:'cust',today:'today',ai:'ai',more:'more',map:'more',prod:'more'};
   const act=v.pg==='set'?'more':v.pg?'today':(navOf[v.tab]||'today');
@@ -306,8 +306,13 @@ function render(){
   else if(v.cid)h=custView();
   else if(v.order)h=orderView();
   else h=v.tab==='cust'?custList():v.tab==='cov'?covView():v.tab==='prod'?prodView():v.tab==='map'?mapView():v.tab==='ai'?aiView():v.tab==='more'?moreView():todayView();
-  const _k=JSON.stringify(v),_y=window.scrollY;$('main').innerHTML=h;
-  try{window.scrollTo(0,_rk===_k?_y:0)}catch(_){}_rk=_k;
+  const _k=JSON.stringify(v),_y=window.scrollY;
+  if(_rk!==null)_ys[_rk]=_y;                                   // remember where we were on the screen we are leaving
+  $('main').innerHTML=h;
+  // same screen redrawn -> stay; coming BACK to a plain list/tab screen -> where we left it; anything else -> top
+  const _back=_rk!==_k&&Object.keys(v).length===1&&v.tab&&_ys[_k]>0;
+  try{window.scrollTo(0,_rk===_k?_y:_back?_ys[_k]:0)}catch(_){}_rk=_k;
+  if(Object.keys(_ys).length>30)_ys={};
 }
 function summary(){const s=day0(),e2=s+864e5,inr=t=>t>=s&&t<e2;return{v:S.visits.filter(x=>inr(x.t)&&x.auto!==5).length,o:S.orders.filter(x=>!x.cx&&inr(x.t)).length,c:S.ledger.filter(x=>x.type==='PAID'&&inr(x.t)).reduce((a,x)=>a+x.amt,0)}}
 function todayView(){
