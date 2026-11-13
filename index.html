@@ -1163,7 +1163,7 @@ function polish(){
 const _render=render;render=function(){_render();polish()};
 document.addEventListener('click',e=>{if(e.target.closest('button,.tile,.chip,a.icobtn'))hap(8)},true);
 let TOUR=[],LM=null;
-function gmUrls(st){const o=[];for(let i=0;i<st.length;i+=3)o.push(gmDir(i?'':originV(),st.slice(i,i+3).map(wp)));return o}
+function gmUrls(st){return st.map(c=>navHref(c))}
 function gmLinks(st){const u=gmUrls(st);return u.map((x,i)=>`<a class="btn" target="_blank" rel="noopener" href="${e(x)}">🧭 ${u.length>1?'الجزء '+(i+1)+' من '+u.length+' • ':''}افتح في جوجل مابس (${Math.min(3,st.length-i*3)} عميل)</a>`).join('')}
 function tourStops(list){const cs=list.flatMap(x=>x.cs),rest=cs.filter(c=>c.lat!=null),n=cs.filter(c=>c.lat==null),r=[];let cur=homeLL();
   if(!cur&&rest.length){cur=rest.shift();r.push(cur)}
