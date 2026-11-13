@@ -225,6 +225,18 @@
       let l; try { l = Array.from(document.querySelectorAll(sel)); } catch (_) { throw new Error('invalid CSS selector'); }
       return l.slice(0, 20);
     }
+    cssReport(css) {
+      const out = [];
+      String(css).replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|\})\s*([^{}@\s][^{}]*)\{/g, (m, a, sel) => {
+        sel.split(',').map(x => x.trim()).filter(Boolean).slice(0, 12).forEach(x => { let n = -1; try { n = document.querySelectorAll(x).length; } catch (_) {} out.push({ selector: cap(x, 60), matches_now: n }); });
+        return m;
+      });
+      return out.slice(0, 12);
+    }
+    cssFeedback(css) {
+      const sel = this.cssReport(css), bad = sel.filter(x => x.matches_now <= 0);
+      return Object.assign({ selectors: sel }, bad.length ? { warning: 'these selectors match nothing on the current screen (' + bad.map(x => x.selector).join(' , ') + '). The change may have no visible effect: use inspect_dom to find the real selector, or tell the user honestly.' } : {});
+    }
     guardRoot(els, m) {
       if (m === 'set_html' && els.some(el => el === document.body || el.id === 'main' || el.id === 'nav')) throw new Error('refusing to replace the whole app container; target a smaller element');
     }
@@ -232,7 +244,7 @@
       const id = 'u' + rid(), m = op.mode;
       if (m === 'add_css') {
         const el = document.createElement('style'); el.setAttribute('data-ai-live', id); el.textContent = checkCSS(op.value); document.head.appendChild(el);
-        this.undo.push({ id, label: 'add_css', fn: () => el.remove() }); return { ok: true, revert_id: id };
+        this.undo.push({ id, label: 'add_css', fn: () => el.remove() }); return Object.assign({ ok: true, revert_id: id }, this.cssFeedback(op.value));
       }
       const els = this.pick(op.selector);
       if (!els.length) return { ok: false, error: 'selector matched nothing. Note: the app re-renders often and wipes unsaved edits; inspect_dom first.' };
@@ -650,7 +662,7 @@
         if (step === this.cfg.maxSteps - 1) final = 'وصلت للحد الأقصى من الخطوات. راجع اللي اتنفّذ في السجل.';
       }
       this.history.push({ role: 'user', content: text }, { role: 'assistant', content: final || 'تم.' }); this.history = this.history.slice(-this.cfg.historyTurns * 2);
-      return { ok: true, final, steps, ran };
+      return { ok: true, final, steps, ran, dev };
     }
 
     // public entry. Offline -> the request is queued (and runs unattended when the connection returns).
@@ -761,7 +773,7 @@
           if (a.mode !== 'add_css' && !a.selector) return { ok: false, error: 'selector required' };
           if (!a.persist) return A.ui.live(a);
           if (A.ui.safe) return { ok: false, error: 'safe mode is on (a previous patch crashed the app); open More > Cloud and leave safe mode first' };
-          if (a.mode === 'add_css') return A.ui.persist({ type: 'css', css: checkCSS(a.value), label: a.label || 'css' });
+          if (a.mode === 'add_css') { const css = checkCSS(a.value), r = await A.ui.persist({ type: 'css', css, label: a.label || 'css' }); return Object.assign(r, A.ui.cssFeedback(css)); }
           if (/^(set_html|append_html|prepend_html)$/.test(a.mode)) { A.ui.guardRoot(A.ui.pick(a.selector), a.mode); return A.ui.persist({ type: 'html', mode: a.mode, selector: a.selector, html: sanitizeHTML(a.value), label: a.label || a.mode }); }
           return { ok: false, error: 'persist supports add_css, set_html, append_html, prepend_html only' };
         } });
@@ -888,11 +900,12 @@
     try {
       const r = await agent.ask(t, { onStep: lbl => { try { if (AXPH >= 0 && aiMsgs[AXPH]) { aiMsgs[AXPH] = { bot: 1, h: '<span class="mu">' + esc(lbl) + '...</span>' }; aiRender(); } } catch (_) {} } });
       final = r.final || (r.ran ? 'تم.' : 'مفهمتش الطلب، وضّحه أكتر.');
+      if (r.dev && !r.ran) final += '\n⚠ ده رد كلام بس: مفيش أي أداة اتنفّذت فعليًا، يعني مفيش تغيير حصل.';
       try { AGH.push({ r: 'u', t: t }, { r: 'a', t: final }); AGH = AGH.slice(-16); } catch (_) {}
     } catch (er) {
       err = er.name === 'AbortError' ? 'الرد أخد وقت طويل، جرّب تاني' : er.message === 'NOLOGIN' ? 'سجّل دخول السحابة الأول (المزيد > السحابة)' : (er.message || 'حصلت مشكلة');
     }
-    const h = err ? '<span class="red">' + esc(err) + '</span><div class="mu" style="margin-top:6px">اللي اتنفّذ قبل الخطأ موجود في سجل المساعد.</div>' : esc(final).replace(/\n/g, '<br>');
+    const h = err ? '<span class="red">' + esc(err) + '</span><div class="mu" style="margin-top:6px">اللي اتنفّذ قبل الخطأ موجود في سجل المساعد.</div>' : esc(final).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/\n/g, '<br>');
     if (AXPH >= 0 && aiMsgs[AXPH]) aiMsgs[AXPH] = { bot: 1, h }; else aiMsgs.push({ bot: 1, h });
     AXBUSY = false; AXPH = -1; try { save(); } catch (_) {} aiRender();
     if (AXNAV) { const f = AXNAV; AXNAV = null; try { agClose(); } catch (_) {} setTimeout(f, 350); }
