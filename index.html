@@ -1064,7 +1064,8 @@ function parseLL(s){s=(s||'').trim();const m=s.match(/@(-?\d+\.\d+),(-?\d+\.\d+)
 function setLoc(id){const t=(prompt('الصق إحداثيات المكان أو رابط طويل من الخرائط (مثال: 28.9101, 31.0902)')||'').trim();if(!t)return;const c=C(id),ll=parseLL(t);if(!ll)return toast('مش لاقي إحداثيات في النص ده');c.lat=ll.lat;c.lng=ll.lng;c.approx=0;if(/^https?:/i.test(t))c.link=t;save();toast('تم حفظ الموقع');render()}
 const gmDir=(o,pts)=>'https://www.google.com/maps/dir/'+[o||''].concat(pts).map(x=>encodeURIComponent(String(x)).replace(/%2C/g,',').replace(/%20/g,'+')).join('/')+'/';
 const wp=c=>c.lat!=null?(+c.lat).toFixed(6)+','+(+c.lng).toFixed(6):[c.shop||c.name,c.village,c.mz,'بني سويف'].filter(Boolean).join(' ');
-function routeHref(l){l=l.slice(0,3);return gmDir(originV(),l.map(wp))}
+function routeHref(l){return gmDir(originV(),[...new Set(l.map(wp))].slice(0,3))}
+  
 function plot(l){
  if(!l.length)return '<div class="card mu">لسه مفيش عملاء ليهم إحداثيات. افتح عميل واضغط "إضافة إحداثيات الموقع".</div>';
  const grp=Object.values(l.reduce((m,c)=>{const k=c.lat.toFixed(4)+','+c.lng.toFixed(4);(m[k]=m[k]||[]).push(c);return m},{}));
