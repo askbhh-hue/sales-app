@@ -119,6 +119,45 @@
     GW.busy = false; redraw();
   }
   GW.testEach = testEach;
+
+  // ---------- monitoring: numbers come from the SQL function ai_stats (migration 006); no prompts/answers/names are ever stored ----------
+  GW.stats = null; GW.sdays = 7;
+  async function loadStats(days) {
+    if (GW.sbusy) return; GW.sbusy = true; GW.sdays = days || GW.sdays || 7; GW.smsg = '⏳ بجيب الأرقام…'; redraw();
+    try {
+      if (!CL.logged()) throw new Error('NOLOGIN');
+      await CL.ensureTok();
+      const call = () => fetch(CL.base + '/rest/v1/rpc/ai_stats', { method: 'POST',
+        headers: { apikey: CL.key, Authorization: 'Bearer ' + CL.tok, 'Content-Type': 'application/json' }, body: JSON.stringify({ p_days: GW.sdays }) });
+      let r = await call();
+      if (r.status === 401) { CL.exp = 0; await CL.ensureTok(); r = await call(); }
+      const j = await r.json().catch(() => null);
+      if (!r.ok) throw new Error(r.status === 404 ? 'الأرقام مش متاحة لسه (migration 006 مش متنفذ)' : ((j && (j.message || j.hint)) || ('خطأ ' + r.status)));
+      GW.stats = j; GW.smsg = '';
+    } catch (er) { GW.smsg = '✘ ' + (er.message === 'NOLOGIN' ? 'سجّل دخول السحابة الأول' : /Failed to fetch|Load failed|NetworkError/i.test(er.message || '') ? 'مفيش نت' : er.message || 'مشكلة'); }
+    GW.sbusy = false; redraw();
+  }
+  GW.loadStats = loadStats;
+  const TOOLN = { whatsapp_history: 'سجل الواتساب', compose_message: 'تجهيز رسالة' };
+  function statsCard() {
+    const s = GW.stats, d = GW.sdays || 7;
+    const btn = n => `<button class="btn ${d === n && s ? 't' : ''}" onclick="GW.loadStats(${n})">${n === 1 ? 'النهارده' : n + ' أيام'}</button>`;
+    let h = `<div class="card"><b>📊 مراقبة الذكاء الاصطناعي</b>
+      <div class="mu" style="margin:6px 0">عدد الطلبات والأخطاء وسرعة كل مزوّد. مفيش كلامك ولا أسماء العملاء بتتسجّل، أرقام بس.</div>
+      <div style="margin:6px 0">${btn(1)} ${btn(7)} ${btn(30)}</div>`;
+    if (GW.smsg) h += '<div class="mu" style="margin:6px 0">' + esc(GW.smsg) + '</div>';
+    if (s) {
+      const pct = s.total ? Math.round(100 * s.ok / s.total) : 0;
+      h += `<div style="margin:6px 0">آخر ${esc(s.days)} يوم: <b>${esc(s.total)}</b> طلب • نجح <b class="grn">${esc(s.ok)}</b> (${pct}%) • فشل <b>${esc(s.failed)}</b> • متوسط السرعة <b>${esc(s.avg_ms)}</b> ملي ثانية</div>`;
+      if (!s.total) h += '<div class="mu">لسه مفيش طلبات متسجّلة في الفترة دي. كلّم المساعد وارجع هنا.</div>';
+      if ((s.by_provider || []).length) h += '<div style="margin:6px 0"><b>المزوّدين</b>' + s.by_provider.map(x => `<div class="mu">• ${esc(x.provider)}: ${esc(x.n)} طلب، نجح ${esc(x.ok)}، متوسط ${esc(x.avg_ms)} ملي ثانية</div>`).join('') + '</div>';
+      if ((s.top_tools || []).length) h += '<div style="margin:6px 0"><b>أكتر الأدوات استخدامًا</b>' + s.top_tools.map(x => `<div class="mu">• ${esc(TOOLN[x.tool] || x.tool)}: ${esc(x.n)}</div>`).join('') + '</div>';
+      if ((s.recent_errors || []).length) h += '<div style="margin:6px 0"><b>آخر الأخطاء</b>' + s.recent_errors.map(x => {
+        let t = ''; try { t = new Date(x.t).toLocaleString('ar-EG', { dateStyle: 'short', timeStyle: 'short' }); } catch (_) {}
+        return `<div class="mu">• ${esc(t)} ${esc(x.provider || '?')} ${x.status ? '(' + esc(x.status) + ')' : ''} ${esc(x.error || '')}</div>`; }).join('') + '</div>';
+    }
+    return h + '</div>';
+  }
   GW.test = test; GW.toggle = toggle; GW.on = on;
 
   function card() {
@@ -137,7 +176,7 @@
     if (FLAGS.useServerAI === undefined) FLAGS.useServerAI = false;
     attach();
     const _mv = mapView;
-    mapView = function () { const h = _mv(); try { if (v && v.cloud) return h + card(); } catch (er) { console.error('[gw]', er); } return h; };
+    mapView = function () { const h = _mv(); try { if (v && v.cloud) return h + card() + statsCard(); } catch (er) { console.error('[gw]', er); } return h; };
     console.log('🤖 ai-gw.js ready. useServerAI =', FLAGS.useServerAI);
   } catch (er) { console.error('[ai-gw.js] failed to attach, app continues unchanged:', er); }
 })();
