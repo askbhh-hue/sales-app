@@ -587,13 +587,18 @@
       }
       const m = new Error('مفيش اتصال بالإنترنت أو السيرفر مش بيرد'); m.net = true; m.cause = last; throw m;
     }
-    static parseModel(j) {
+    static parseModel(j, known) {
       const m = j && Array.isArray(j.choices) && j.choices[0] && j.choices[0].message;
       if (!m || typeof m !== 'object') { const e = new Error('رد غير مفهوم من الموديل'); e.malformed = true; throw e; }
       let text = typeof m.content === 'string' ? m.content : Array.isArray(m.content) ? m.content.map(p => (p && p.text) || '').join('') : '';
       text = text.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
       const calls = (Array.isArray(m.tool_calls) ? m.tool_calls : []).filter(tc => tc && tc.function && typeof tc.function.name === 'string')
         .map((tc, i) => ({ id: tc.id || 'call_' + rid() + i, name: tc.function.name, raw: tc.function.arguments }));
+      if (!calls.length && text && known) {
+        const mm = text.match(/```(?:json)?\s*([\s\S]*?)```/i) || text.match(/(\{[\s\S]*"(?:tool|name)"[\s\S]*\})/);
+        const pj = mm && safeParse(mm[1]), o = pj && pj.ok && pj.value, nm = o && (o.tool || o.name);
+        if (typeof nm === 'string' && known.has(nm)) { calls.push({ id: 'call_' + rid(), name: nm, raw: o.arguments || o.args || o.parameters || {} }); text = text.replace(mm[0], '').trim(); }
+      }
       return { text, calls, truncated: j.choices[0].finish_reason === 'length' };
     }
 
@@ -605,6 +610,7 @@
       const chk = validate(t.parameters, args);
       if (chk.errs.length) return { ok: false, error: 'invalid_arguments', details: chk.errs.slice(0, 6), hint: 'fix the arguments and call again' };
       args = chk.value;
+      if (t.precheck) { let pe = ''; try { pe = t.precheck(args); } catch (er) { pe = er.message; } if (pe) { this.log(name, 'precheck'); return { ok: false, error: pe }; } }
       let risk = typeof t.risk === 'function' ? t.risk(args) : t.risk;
       if (ctx.unattended && (t.write || risk === 'low') && t.risk !== 'read') risk = 'confirm';   // queued prompts never write silently
       try {
@@ -636,7 +642,7 @@
       const ac = this.abort = new AbortController(), steps = [], seen = {}; let repairs = 0, final = '', ran = 0;
       for (let step = 0; step < this.cfg.maxSteps; step++) {
         let r;
-        try { r = SalesAIAgent.parseModel(await this.callModel(msgs, ac.signal, dev)); }
+        try { r = SalesAIAgent.parseModel(await this.callModel(msgs, ac.signal, dev), opts.allowed); }
         catch (er) {
           if (er.malformed && repairs++ < 1) { msgs.push({ role: 'user', content: 'ردك كان غير صالح. ارجع بإجابة نصية أو استدعاء أداة صحيح.' }); continue; }
           throw er;
@@ -760,7 +766,7 @@
         run: a => {
           const els = A.ui.pick(a.selector || '#main'); if (!els.length) return { ok: false, error: 'selector matched nothing' };
           const el = els[0], n = Math.min(a.max_chars || 3000, 6000), mode = a.mode || 'outline';
-          if (mode === 'outline') { const o = []; (function w(x, d) { if (d > 4 || o.length > 60) return; Array.from(x.children).slice(0, 12).forEach(c => { o.push('  '.repeat(d) + c.localName + (c.id ? '#' + c.id : '') + (c.className && typeof c.className === 'string' ? '.' + c.className.trim().split(/\s+/).slice(0, 2).join('.') : '') + ' ' + cap((c.children.length ? '' : c.textContent || '').trim(), 30)); w(c, d + 1); }); })(el, 0); return { ok: true, outline: redact(cap(o.join('\n'), n)) }; }
+          if (mode === 'outline') { const o = []; (function w(x, d) { if (d > 4 || o.length > 60) return; Array.from(x.children).slice(0, 12).forEach(c => { o.push('  '.repeat(d) + c.localName + (c.id ? '#' + c.id : '') + (c.getAttribute('onclick') ? '[onclick="' + cap(c.getAttribute('onclick'), 32) + '"]' : '') + (c.className && typeof c.className === 'string' ? '.' + c.className.trim().split(/\s+/).slice(0, 2).join('.') : '') + ' ' + cap((c.children.length ? '' : c.textContent || '').trim(), 30)); w(c, d + 1); }); })(el, 0); return { ok: true, outline: redact(cap(o.join('\n'), n)) }; }
           const raw = mode === 'text' ? (el.innerText || el.textContent || '') : el.outerHTML.replace(/<script[\s\S]*?<\/script>/gi, '').replace(/<style[\s\S]*?<\/style>/gi, '');
           return { ok: true, matched: els.length, content: redact(cap(raw.replace(PHONE_RE, '«phone»'), n)) };
         } });
@@ -768,6 +774,17 @@
       A.register({ dev: true, name: 'ui_patch', title: 'تعديل دائم على الشاشة', description: 'Change the live UI with sanitized HTML/CSS (no scripts/handlers; use data-ai-ask="text" on a button to make it send text to the assistant). modes: set_html|append_html|prepend_html|set_text|set_style|set_attr(attr)|add_class|remove_class|remove|add_css. Without persist the change is lost at the next re-render. persist=true (add_css/set_html/append_html/prepend_html only) saves it in IndexedDB and re-applies after every render; asks the user first.',
         parameters: P.o({ mode: P.s('mode', ['set_html', 'append_html', 'prepend_html', 'set_text', 'set_style', 'set_attr', 'add_class', 'remove_class', 'remove', 'add_css']), selector: P.s('CSS selector (not needed for add_css)'), value: P.s('html / text / css / class names / attribute value'), attr: P.s('attribute name for set_attr'), persist: P.b('save permanently'), label: P.s('short description') }, ['mode']),
         write: true, risk: a => a.persist ? 'confirm' : 'low',
+        precheck: a => {
+          if (a.mode === 'add_css') {
+            const rp = A.ui.cssReport(a.value || ''), bad = rp.filter(x => x.matches_now < 0);
+            if (!rp.length) return 'no CSS rule found in value (expected selector { property: value })';
+            if (bad.length) return 'invalid CSS selector: ' + bad.map(x => x.selector).join(' , ') + ' (e.g. :contains() is not CSS). Call inspect_dom (mode html) and use a real class, id or attribute such as button[onclick*="aiSend"].';
+            if (a.persist && rp.every(x => x.matches_now === 0)) return 'none of the selectors match anything on the current screen (' + rp.map(x => x.selector).join(' , ') + '). Call inspect_dom first and use a real selector.';
+          } else if (a.persist && a.selector) {
+            try { if (!A.ui.pick(a.selector).length) return 'selector matches nothing on the current screen; call inspect_dom first'; } catch (er) { return er.message; }
+          }
+          return '';
+        },
         preview: a => 'PERSIST UI PATCH (' + a.mode + ')\nselector: ' + (a.selector || '(global css)') + '\n' + (a.label ? a.label + '\n' : '') + '\n' + cap(a.value, 2500),
         run: async a => {
           if (a.mode !== 'add_css' && !a.selector) return { ok: false, error: 'selector required' };
