@@ -276,7 +276,7 @@
       let origin = '';
       if (i) origin = pts[i - 1];                                                     // 2nd part starts where the 1st ended
       else if (cfg().start !== 'gps' && okLL(st)) origin = (+st.lat).toFixed(6) + ',' + (+st.lng).toFixed(6);   // GPS start = let Google use the live location
-      out.push({ url: 'https://www.google.com/maps/dir/?api=1&travelmode=driving' + (origin ? '&origin=' + encodeURIComponent(origin) : '') + '&destination=' + encodeURIComponent(dest) + (way.length ? '&waypoints=' + encodeURIComponent(way.join('|')) : ''), n: ch.length });
+      out.push({ url: 'https://www.google.com/maps/dir/' + [origin].concat(ch).map(x => encodeURIComponent(x).replace(/%2C/g, ',')).join('/') + '/', n: ch.length });
     }
     return out;
   }
