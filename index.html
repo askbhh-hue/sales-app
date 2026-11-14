@@ -1064,8 +1064,7 @@ function parseLL(s){s=(s||'').trim();const m=s.match(/@(-?\d+\.\d+),(-?\d+\.\d+)
 function setLoc(id){const t=(prompt('الصق إحداثيات المكان أو رابط طويل من الخرائط (مثال: 28.9101, 31.0902)')||'').trim();if(!t)return;const c=C(id),ll=parseLL(t);if(!ll)return toast('مش لاقي إحداثيات في النص ده');c.lat=ll.lat;c.lng=ll.lng;c.approx=0;if(/^https?:/i.test(t))c.link=t;save();toast('تم حفظ الموقع');render()}
 const gmDir=(o,pts)=>'https://www.google.com/maps/dir/'+[o||''].concat(pts).map(x=>encodeURIComponent(String(x)).replace(/%2C/g,',').replace(/%20/g,'+')).join('/')+'/';
 const wp=c=>c.lat!=null?(+c.lat).toFixed(6)+','+(+c.lng).toFixed(6):[c.shop||c.name,c.village,c.mz,'بني سويف'].filter(Boolean).join(' ');
-function routeHref(l){return gmDir(originV(),[...new Set(l.map(wp))].slice(0,3))}
-  
+function routeHref(l){l=l.slice(0,3);return gmDir(originV(),l.map(wp))}
 function plot(l){
  if(!l.length)return '<div class="card mu">لسه مفيش عملاء ليهم إحداثيات. افتح عميل واضغط "إضافة إحداثيات الموقع".</div>';
  const grp=Object.values(l.reduce((m,c)=>{const k=c.lat.toFixed(4)+','+c.lng.toFixed(4);(m[k]=m[k]||[]).push(c);return m},{}));
@@ -1164,7 +1163,7 @@ function polish(){
 const _render=render;render=function(){_render();polish()};
 document.addEventListener('click',e=>{if(e.target.closest('button,.tile,.chip,a.icobtn'))hap(8)},true);
 let TOUR=[],LM=null;
-function gmUrls(st){return st.map(c=>navHref(c))}
+function gmUrls(st){const o=[];for(let i=0;i<st.length;i+=3){const ch=st.slice(i,i+3).map(wp);o.push(gmDir(i?wp(st[i-1]):originV(),ch))}return o}
 function gmLinks(st){const u=gmUrls(st);return u.map((x,i)=>`<a class="btn" target="_blank" rel="noopener" href="${e(x)}">🧭 ${u.length>1?'الجزء '+(i+1)+' من '+u.length+' • ':''}افتح في جوجل مابس (${Math.min(3,st.length-i*3)} عميل)</a>`).join('')}
 function tourStops(list){const cs=list.flatMap(x=>x.cs),rest=cs.filter(c=>c.lat!=null),n=cs.filter(c=>c.lat==null),r=[];let cur=homeLL();
   if(!cur&&rest.length){cur=rest.shift();r.push(cur)}
@@ -3599,5 +3598,48 @@ try{render()}catch(_){try{polish()}catch(_){}}
 <script src="js/export.js?v=1"></script>
 <script src="js/route.js?v=7"></script>
 <script src="js/wa.js?v=1"></script>
+<script>
+/* === Tour hub add-on (non-destructive: overrides only, original code untouched) === */
+try{(function(){
+const DK='hubdone_'+new Date().toISOString().slice(0,10);
+const gd=()=>{try{return JSON.parse(localStorage.getItem(DK)||'[]')}catch(_){return[]}};
+const sd=a=>{try{localStorage.setItem(DK,JSON.stringify(a))}catch(_){}};
+let K=[],gps=null;
+const ll=a=>{const c=a.find(c=>c.lat!=null);return c?{lat:+c.lat,lng:+c.lng}:null};
+const nm=x=>x.a[0].village||x.a[0].name;
+function places(st){const m=new Map();st.forEach(c=>{const k=wp(c);if(!m.has(k))m.set(k,[]);m.get(k).push(c)});
+ let g=[...m.entries()].map(([k,a])=>({k,a,p:ll(a)}));
+ if(gps){const w=g.filter(x=>x.p),n=g.filter(x=>!x.p),r=[];let cur=gps;while(w.length){let bi=0,bd=1e9;w.forEach((q,i)=>{const d=hav(cur,q.p);if(d<bd){bd=d;bi=i}});const q=w.splice(bi,1)[0];r.push(q);cur=q.p}g=r.concat(n)}
+ return g}
+// verified-safe link builders: no repeated points
+routeHref=function(l){return gmDir(originV(),[...new Set(l.map(wp))].slice(0,3))};
+gmUrls=function(st){const u=[...new Set(st.map(wp))],o=[];for(let i=0;i<u.length;i+=3)o.push(gmDir(i?u[i-1]:originV(),u.slice(i,i+3)));return o};
+window.hubDone=i=>{const d=gd(),k=K[i],j=d.indexOf(k);j<0?d.push(k):d.splice(j,1);sd(d);render()};
+window.hubReset=()=>{sd([]);render()};
+window.hubGps=()=>{if(!navigator.geolocation)return toast('الجهاز مش بيدعم تحديد الموقع');toast('بحدد موقعك...');navigator.geolocation.getCurrentPosition(p=>{gps={lat:p.coords.latitude,lng:p.coords.longitude};render()},()=>toast('مقدرتش أحدد موقعك'),{enableHighAccuracy:true,timeout:10000})};
+window.hubTour=()=>{if(!TOUR||!TOUR.length){try{covView()}catch(_){}}showTour()};
+gmLinks=function(st){
+ const g=places(st),d=gd(),left=g.filter(x=>!d.includes(x.k)),nx=left.slice(0,3);K=g.map(x=>x.k);
+ const lp=g.find(x=>x.k===d[d.length-1]),o=lp&&lp.p?lp.p.lat.toFixed(6)+','+lp.p.lng.toFixed(6):originV();
+ const url=nx.length?gmDir(o,nx.map(x=>x.k)):'';
+ let km=0,prev=gps||homeLL();left.forEach(x=>{if(x.p){if(prev)km+=hav(prev,x.p);prev=x.p}});km=Math.round(km*1.3);const mi=Math.round(km/35*60);
+ const wt='https://wa.me/?text='+encodeURIComponent('جولة النهارده:\n'+left.map((x,i)=>(i+1)+'. '+nm(x)+': '+x.a.map(c=>c.name).join('، ')).join('\n'));
+ const rows=g.map((x,i)=>{const dn=d.includes(x.k),dest=x.p?'https://www.google.com/maps/dir/?api=1&travelmode=driving&destination='+x.k:navHref(x.a[0]);
+  return `<div class="card" style="margin:8px 0;${dn?'opacity:.5':''}"><div class="stat" style="font-size:16px;align-items:flex-start"><span><b>${e(nm(x))}</b>${x.a[0].approx?' <span class="mu">• موقع تقريبي</span>':''}<br>${x.a.map(c=>`<span class="mu" style="cursor:pointer;line-height:2" onclick="open_('${c.id}')">• ${e(c.name)}</span>`).join('<br>')}</span><span style="display:flex;gap:6px;flex:none"><a class="btn t sm" style="width:auto;padding:8px 12px;margin:0" target="_blank" rel="noopener" href="${e(dest)}">🧭</a><button class="btn sm" style="width:auto;padding:8px 12px;margin:0" onclick="hubDone(${i})">${dn?'↩':'✔'}</button></span></div></div>`}).join('');
+ return `<div class="card" style="margin:10px 0"><div style="font-size:17px"><b>${left.length}</b> مكان باقي من ${g.length}</div><div class="mu" style="margin:4px 0 10px">${left.reduce((s,x)=>s+x.a.length,0)} عميل${km?' • حوالي '+km+' كم • '+mi+' دقيقة قيادة (تقريبي)':''}</div>`
+  +(url?`<a class="btn" target="_blank" rel="noopener" href="${e(url)}">🚀 ابدأ: أقرب ${nx.length} أماكن</a>`:'<div class="mu">خلّصت كل الأماكن 🎉</div>')
+  +`<div class="row" style="gap:8px;margin-top:8px"><button class="btn t sm" onclick="hubGps()">📍 رتّب من موقعي</button><a class="btn t sm" target="_blank" rel="noopener" href="${e(wt)}">📤 واتساب</a><button class="btn t sm" onclick="hubReset()">↺ من الأول</button></div></div>`+rows};
+// one switcher bar across all map/route/tour screens (old screens kept, nothing removed)
+const _m=mapView;
+mapView=function(){const h=_m();if(v.bk||v.hub)return h;const a=v.rte?'r':v.tour?'t':'m';
+ const c=(k,t,f)=>`<button onclick="${f}" style="flex:none;white-space:nowrap;border:0;border-radius:20px;padding:10px 14px;font:inherit;cursor:pointer;${a===k?'background:var(--pr);color:var(--prt)':'background:var(--surf);color:var(--tx)'}">${t}</button>`;
+ return `<div style="display:flex;gap:8px;overflow-x:auto;padding:6px 0 10px">${c('r','🧭 الجولة الذكية',"v={tab:'map',rte:1};render()")}${c('t','🗺 أماكن الجولة',"hubTour()")}${c('m','👥 العملاء على الخريطة',"v={tab:'map'};render()")}${c('c','📍 الزيارات',"go('cov')")}</div>`+h};
+// one entry tile in "المزيد" instead of two
+const _mo=moreView;
+moreView=function(){let h=_mo();h=h.replace(/<button class="tile" onclick="go\('map'\)">[\s\S]*?<\/button>/,'').replace(/<button class="tile" onclick="v=\{tab:'map',rte:1\};render\(\)">[\s\S]*?<\/button>/,'');
+ return h.replace('<div class="grid2">','<div class="grid2"><button class="tile" onclick="v={tab:\'map\',rte:1};render()"><span class="ti">🧭</span>الجولة والخرائط</button>')};
+console.log('hub add-on ready');
+})()}catch(er){console.error('[hub add-on] failed, app continues unchanged:',er)}
+</script>
 </body>
 </html>
