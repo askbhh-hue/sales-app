@@ -52,7 +52,7 @@
   }
   function saveSnap(next) { next.__uid = cfg().uid; _snap = next; try { localStorage.setItem(SK, JSON.stringify(next)); } catch (_) {} }
 
-  const CL = window.CL = { tok: null, exp: 0, busy: false, again: false, timer: null, retry: 0, msg: '', rec: null, loginEm: '', loginPw: '', loginBusy: false };
+  const CL = window.CL = { tok: null, exp: 0, busy: false, again: false, timer: null, retry: 0, msg: '', rec: null, loginEm: '', loginPw: '', loginBusy: false, snaps: null, snapBusy: false, snapMsg: '' };
   const redraw = () => { try { if (typeof v !== 'undefined' && v && v.cloud) render(); } catch (_) {} };
 
   // ---------------- network ----------------
@@ -223,6 +223,25 @@
     if (!cfg().rt) { CL.msg = 'سجّل دخول الأول'; redraw(); return; }
     sync({ full: true, force: true }).then(r => { CL.msg = r && r.error ? '' : '✔ المزامنة الكاملة خلصت. دوس «قارن الأرقام».'; redraw(); });
   };
+  // ---------------- full cloud snapshots (whole app data, restorable exactly) ----------------
+  const snapErr = er => er.message === 'NOLOGIN' ? 'سجّل دخول الأول' : isOffline(er) ? 'مفيش نت' :
+    /snapshot_(put|list|get)/.test(er.message || '') && /not find|does not exist|schema cache/i.test(er.message || '') ? 'لازم تشغّل ملف 008 في Supabase الأول' :
+    er.message === 'shrunk_payload' ? 'النسخة دي فيها عملاء أقل من نص النسخة اللي قبلها، فرفضتها عشان أحمي نسخك القديمة' :
+    er.message === 'too_large' ? 'البيانات كبيرة أوي على النسخة' : er.message;
+  CL.snapList = async function () {
+    try { CL.snaps = await rpc('snapshot_list'); } catch (er) { CL.snaps = []; CL.snapMsg = '✘ ' + snapErr(er); }
+    redraw();
+  };
+  CL.snapSave = async function () {
+    if (CL.snapBusy) return; CL.snapBusy = true; CL.snapMsg = '⏳ بحفظ نسخة في السحابة…'; redraw();
+    try {
+      const r = await rpc('snapshot_put', { p_data: JSON.parse(JSON.stringify(S)), p_note: 'يدوي' });
+      CL.snapMsg = '✔ النسخة اتحفظت (' + fmt(r.counts.customers) + ' عميل، ' + Math.max(1, Math.round(r.size_bytes / 1024)) + ' ك.ب)';
+      try { toast('✔ نسخة السحابة اتحفظت'); } catch (_) {}
+      await CL.snapList();
+    } catch (er) { CL.snapMsg = '✘ ' + snapErr(er); }
+    CL.snapBusy = false; redraw();
+  };
   CL.compare = compare;
   CL.touch = function () { if (FLAGS.dualWrite) schedule(2500); };
   CL._test = { sync, diff, expected, rpc, cfg };
@@ -247,6 +266,12 @@
       <input type="password" dir="ltr" autocomplete="current-password" placeholder="الباسورد" oninput="CL.loginPw=this.value">
       <button class="btn" onclick="CL.login()">دخول</button>
       <div class="mu">الباسورد مبيتحفظش على الجهاز، بنحفظ بس مفتاح جلسة.</div></div>`;
+    if (logged && CL.snaps === null && !CL.snapBusy) { CL.snaps = []; setTimeout(() => CL.snapList(), 50); }
+    const snapCard = !logged ? '' : `<div class="card"><b>💾 نسخ كاملة في السحابة</b>
+      <div class="mu" style="margin:6px 0">نسخة طبق الأصل من كل بياناتك (آخر 10 نسخ). بتحميك لو الموبايل ضاع أو اتمسح التطبيق. حفظ النسخة ما بيغيّرش حاجة في بياناتك.</div>
+      <button class="btn" ${CL.snapBusy ? 'disabled' : ''} onclick="CL.snapSave()">💾 احفظ نسخة دلوقتي في السحابة</button>
+      ${CL.snapMsg ? '<div class="mu" style="margin:6px 0">' + esc(CL.snapMsg) + '</div>' : ''}
+      ${(CL.snaps || []).length ? '<div style="margin-top:8px">' + CL.snaps.map(x => '<div class="mu">• ' + new Date(x.taken_at).toLocaleString('ar-EG') + ' — ' + fmt((x.counts || {}).customers || 0) + ' عميل، ' + fmt((x.counts || {}).orders || 0) + ' طلب</div>').join('') + '</div>' : '<div class="mu">مفيش نسخ لسه.</div>'}</div>`;
     const acts = !logged ? '' : `<div class="card">
       <button class="btn" onclick="CL.toggle()">${on ? '⏸ وقّف المزامنة' : '▶️ شغّل المزامنة'}</button>
       <button class="btn t" onclick="CL.syncNow()">🔄 زامن دلوقتي</button>
@@ -257,7 +282,7 @@
       <div class="card"><b>الحالة</b><div style="margin:6px 0">${st}</div>
         <div class="mu">${logged ? 'الحساب: ' + esc(c.em || '') : 'سجّل دخول الأول'}${c.last ? ' • آخر مزامنة: ' + new Date(c.last).toLocaleString('ar-EG') : ''}${logged && on ? ' • مستني يتبعت: ' + pending() : ''}</div>
         ${CL.msg ? '<div class="mu">' + esc(CL.msg) + '</div>' : ''}</div>
-      ${loginCard}${acts}${recHtml}
+      ${loginCard}${snapCard}${acts}${recHtml}
       <div class="card mu">لو حصلت أي مشكلة: دوس «وقّف المزامنة». التطبيق بيشتغل زي الأول 100% وبيانات الجهاز مش بتتأثر.</div>`;
   }
 
