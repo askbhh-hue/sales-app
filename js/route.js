@@ -297,7 +297,6 @@
       ${p.list.map((x, i) => `<div class="card"><b>${i + 1}. ${esc(gname(x))}</b> ${okLL(x.ll) ? '<a class="pp" target="_blank" rel="noopener" href="' + esc(vhref(x)) + '">🧭 روح للقرية دي</a>' : ''} <span class="mu">• ${x.pn.length} عميل${okLL(x.ll) ? (x.hop ? ' • ' + dstr(Math.round(x.hop * ROAD * 10) / 10) + ' من اللي قبلها' : '') : ' • مفيش موقع للقرية'}</span>
         ${x.pn.slice(0, 15).map(q => `<div class="item"><button class="itm-main" onclick="open_('${esc(q.id)}')"><span class="grow"><span class="nm">${esc(q.name)}</span><span class="sb">${esc([q.shop, q.phone].filter(Boolean).join(' • ') || '—')}${bal(q.id) > 0 ? ' • عليه ' + Math.round(bal(q.id)) : ''}</span></span></button>${q.phone ? `<a class="icobtn" href="tel:${esc(q.phone)}">📞</a>` : ''}<button class="icobtn" aria-label="تمت الزيارة" onclick="RTE.done('${esc(q.id)}')">✓</button></div>`).join('')}
         ${x.pn.length > 15 ? '<div class="mu">+ ' + (x.pn.length - 15) + ' عميل تانيين</div>' : ''}</div>`).join('')}
-      ${(() => { const nx = p.list.find(x => okLL(x.ll)); return nx ? '<a class="btn" target="_blank" rel="noopener" href="' + esc(vhref(nx)) + '">🧭 ابدأ: روح ' + esc(gname(nx)) + ' (من مكانك)</a>' : ''; })()}
       ${href.map((u, i) => `<a class="btn" target="_blank" rel="noopener" href="${esc(u.url)}">🧭 ${href.length > 1 ? 'الجزء ' + (i + 1) + ' من ' + href.length + ' • ' : ''}مسار ${u.n} قرى مع بعض</a>`).join('')}
       ${settings(c, f, mzOpts, p, st)}`;
   }
@@ -347,8 +346,7 @@
       <label style="display:flex;gap:10px;align-items:center;margin:10px 0"><input type="checkbox" ${c.round ? 'checked' : ''} onchange="RTE.toggleRound()" style="width:22px;height:22px;margin:0"> احسب الرجوع للبداية</label>
       <div class="msgf"><label class="lb">كم للتر</label><input type="number" inputmode="decimal" value="${f.kmpl}" onchange="RTE.setFuel('kmpl',this.value)"></div>
       <div class="msgf"><label class="lb">سعر اللتر (جنيه)</label><input type="number" inputmode="decimal" value="${f.price}" onchange="RTE.setFuel('price',this.value)"></div>
-      <div class="mu">المسافات تقديرية: خط مستقيم × 1.3 تقريباً بدل الطرق الفعلية.</div>
-      <button class="btn t" style="margin-top:8px" onclick="RTE.toggleOn()">${on() ? '⏸ وقّف الترتيب الذكي (ارجع للطريقة القديمة)' : '▶️ شغّل الترتيب الذكي'}</button></div>`;
+      <div class="mu">المسافات تقديرية: خط مستقيم × 1.3 تقريباً بدل الطرق الفعلية.</div></div>`;
   }
   E.view = view;
 
