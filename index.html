@@ -220,6 +220,148 @@ body.agopen #ag{display:flex;flex-direction:column;max-height:88vh;max-height:88
 /* حركة أقل لمن يفضّل ذلك */
 @media (prefers-reduced-motion:reduce){.btn:active,.tile:active,.chip:active,.itm-main:active,.icobtn:active,nav button:active{transform:none}#agfab{transition:none}}
 </style>
+<style id="ds-tokens">
+/* =====================================================================
+   ds-tokens  —  paste as the LAST <style id="ds-tokens"> inside <head>
+   (after <style id="ux3">). Nothing else in the file is touched yet.
+   Theme switch:  <html data-theme="dark|light|dim">  (none = follow system)
+   Default when system has no preference: dark.
+   ===================================================================== */
+
+/* ---------- 1) Theme-independent tokens ---------- */
+:root:root{
+  /* type scale */
+  --fs-xs:12px; --fs-sm:14px; --fs-md:16px; --fs-lg:20px; --fs-xl:28px;
+  --lh-body:1.7; --lh-head:1.3;
+  /* 8px spacing grid */
+  --sp-1:8px; --sp-2:16px; --sp-3:24px; --sp-4:32px; --sp-5:48px;
+  /* 3 radius sizes */
+  --r-s:10px; --r-m:14px; --r-l:20px;
+  /* icons: 24px, 1.75 stroke, one style */
+  --ic-size:24px; --ic-stroke:1.75;
+  /* touch + motion */
+  --tap:48px; --t-fast:150ms; --t-mid:220ms;
+  --ease:cubic-bezier(.2,.8,.2,1);
+  /* font */
+  --font:Cairo,Tajawal,"IBM Plex Sans Arabic",-apple-system,"SF Arabic","Geeza Pro",Tahoma,Arial,sans-serif;
+}
+
+/* ---------- 2) DARK  (default "night comfort") ---------- */
+:root:root{
+  color-scheme:dark;
+  --ds-bg:#0E1412;
+  --ds-s1:#151D19;  --ds-s2:#1B2520;  --ds-s3:#222D27;
+  --ds-line:rgba(228,234,230,.10);  --ds-line-strong:rgba(228,234,230,.18);
+  --ds-tx:#E4EAE6;  --ds-mu:#9AA7A0;
+  --ds-pr:#5CC9A0;  --ds-on-pr:#08130E;  --ds-pr-soft:rgba(92,201,160,.14);
+  --ds-cust:#6FC59A; --ds-cust-soft:rgba(111,197,154,.16);
+  --ds-prod:#D6A95C; --ds-prod-soft:rgba(214,169,92,.16);
+  --ds-map:#86AEDB;  --ds-map-soft:rgba(134,174,219,.16);
+  --ds-debt:#E0877F; --ds-debt-soft:rgba(224,135,127,.16); --ds-on-debt:#1A0B0A;
+  --ds-rep:#A996D0; --ds-trk:#6DBDB3; --ds-msg:#8E9AD6; --ds-set:#A3AEB6; --ds-imp:#C9B26B;
+  --ds-scrim:rgba(5,8,7,.62);
+  --ds-ring:rgba(92,201,160,.35);
+  --ds-sheet-edge:0 -1px 0 var(--ds-line-strong);   /* 1px edge, no glow */
+}
+
+/* ---------- 3) LIGHT (warm off-white, never #fff) ---------- */
+@media (prefers-color-scheme:light){
+  :root:root:not([data-theme]){
+    color-scheme:light;
+    --ds-bg:#F2EEE4;
+    --ds-s1:#F9F6EF;  --ds-s2:#EFEADD;  --ds-s3:#E6E0D0;
+    --ds-line:rgba(30,41,35,.12);  --ds-line-strong:rgba(30,41,35,.22);
+    --ds-tx:#1E2923;  --ds-mu:#59645D;
+    --ds-pr:#1B7556;  --ds-on-pr:#F7FAF6;  --ds-pr-soft:rgba(27,117,86,.11);
+    --ds-cust:#17694D; --ds-cust-soft:rgba(23,105,77,.10);
+    --ds-prod:#7D5208; --ds-prod-soft:rgba(125,82,8,.10);
+    --ds-map:#2A5F94;  --ds-map-soft:rgba(42,95,148,.10);
+    --ds-debt:#A8352B; --ds-debt-soft:rgba(168,53,43,.10); --ds-on-debt:#FBF3F1;
+    --ds-rep:#5B3F94; --ds-trk:#0F6B63; --ds-msg:#3B4AA0; --ds-set:#4A545C; --ds-imp:#7A5A0F;
+    --ds-scrim:rgba(30,41,35,.38);
+    --ds-ring:rgba(27,117,86,.32);
+  }
+}
+:root:root[data-theme="light"]{
+  color-scheme:light;
+  --ds-bg:#F2EEE4;
+  --ds-s1:#F9F6EF;  --ds-s2:#EFEADD;  --ds-s3:#E6E0D0;
+  --ds-line:rgba(30,41,35,.12);  --ds-line-strong:rgba(30,41,35,.22);
+  --ds-tx:#1E2923;  --ds-mu:#59645D;
+  --ds-pr:#1B7556;  --ds-on-pr:#F7FAF6;  --ds-pr-soft:rgba(27,117,86,.11);
+  --ds-cust:#17694D; --ds-cust-soft:rgba(23,105,77,.10);
+  --ds-prod:#7D5208; --ds-prod-soft:rgba(125,82,8,.10);
+  --ds-map:#2A5F94;  --ds-map-soft:rgba(42,95,148,.10);
+  --ds-debt:#A8352B; --ds-debt-soft:rgba(168,53,43,.10); --ds-on-debt:#FBF3F1;
+  --ds-rep:#5B3F94; --ds-trk:#0F6B63; --ds-msg:#3B4AA0; --ds-set:#4A545C; --ds-imp:#7A5A0F;
+  --ds-scrim:rgba(30,41,35,.38);
+  --ds-ring:rgba(27,117,86,.32);
+}
+
+/* ---------- 4) EXTRA DIM (night driving, lower contrast) ---------- */
+:root:root[data-theme="dim"]{
+  color-scheme:dark;
+  --ds-bg:#0A0F0D;
+  --ds-s1:#0F1613;  --ds-s2:#141C18;  --ds-s3:#19221D;
+  --ds-line:rgba(180,190,184,.09);  --ds-line-strong:rgba(180,190,184,.15);
+  --ds-tx:#B4BEB8;  --ds-mu:#84908A;
+  --ds-pr:#4DA583;  --ds-on-pr:#07110C;  --ds-pr-soft:rgba(77,165,131,.14);
+  --ds-cust:#5FA683; --ds-cust-soft:rgba(95,166,131,.14);
+  --ds-prod:#B48D4D; --ds-prod-soft:rgba(180,141,77,.14);
+  --ds-map:#7092B8;  --ds-map-soft:rgba(112,146,184,.14);
+  --ds-debt:#CC847D; --ds-debt-soft:rgba(204,132,125,.14); --ds-on-debt:#160A09;
+  --ds-rep:#8E7DB2; --ds-trk:#5C9E96; --ds-msg:#7983B5; --ds-set:#87929A; --ds-imp:#A89558;
+  --ds-scrim:rgba(3,5,4,.7);
+  --ds-ring:rgba(77,165,131,.32);
+}
+
+/* ---------- 5) Legacy aliases ----------
+   The existing CSS/JS templates read these names (--bg, --surf, --pr ...).
+   Pointing them at the new tokens re-colors the whole app without touching
+   any markup. var() is resolved live, so switching theme updates everything. */
+:root:root{
+  --bg:var(--ds-bg);
+  --surf:var(--ds-s1);  --surf2:var(--ds-s2);  --card:var(--ds-s1);
+  --line:var(--ds-line);
+  --tx:var(--ds-tx);    --mu:var(--ds-mu);
+  --pr:var(--ds-pr);    --pr2:var(--ds-pr);  --prt:var(--ds-on-pr);  --prl:var(--ds-pr-soft);
+  --acc:var(--ds-line-strong);  --accl:var(--ds-s2);   /* old gold accent -> quiet neutral */
+  --ring:var(--ds-ring);  --dot:transparent;
+  --red:var(--ds-debt);  --redl:var(--ds-debt-soft);  --redt:var(--ds-on-debt);
+  --grn:var(--ds-cust);  --grnl:var(--ds-cust-soft);
+  --amb:var(--ds-prod);  --ambl:var(--ds-prod-soft);
+  --blu:var(--ds-map);   --blul:var(--ds-map-soft);
+  --c-cust:var(--ds-cust); --c-prod:var(--ds-prod); --c-map:var(--ds-map);
+  --c-debt:var(--ds-debt); --c-rep:var(--ds-rep);   --c-trk:var(--ds-trk);
+  --c-msg:var(--ds-msg);   --c-set:var(--ds-set);   --c-imp:var(--ds-imp);
+  --c-cust-bg:var(--ds-cust-soft);
+  --sh:none;                     /* no glow, no heavy shadow: borders do the job */
+  --r:var(--r-l);  --r2:var(--r-m);
+}
+
+/* ---------- 6) Base reset layer (kills the neon / glow from the "enh" layer) ---------- */
+html{background:var(--ds-bg)}
+body{
+  background:var(--ds-bg);background-image:none;color:var(--ds-tx);
+  font-family:var(--font);font-size:var(--fs-md);line-height:var(--lh-body);
+}
+.btn:not(.t):not(.dg){box-shadow:none}           /* removes the glow ring on primary buttons */
+nav,#sheet,#ag,.foot{box-shadow:var(--ds-sheet-edge)}
+nav button.on svg{filter:none}                   /* removes drop-shadow glow on active tab */
+#agfab{box-shadow:none;border:1px solid var(--ds-line-strong)}
+#scrim,#agsc{background:var(--ds-scrim)}
+#toast{background:var(--ds-s3);color:var(--ds-tx);border:1px solid var(--ds-line-strong);box-shadow:none}
+.hero{background:var(--ds-s2);color:var(--ds-tx);border:1px solid var(--ds-line)}   /* no bright gradient */
+.hero .mu{color:var(--ds-mu)}
+.pp{background:var(--ds-pr);color:var(--ds-on-pr)!important}
+.num,.bigbal,.amt,.pill,.kpi .v{font-variant-numeric:tabular-nums}
+strong,b{font-weight:700}                        /* real weight from Cairo, no faux bold */
+
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important}
+}
+
+</style>
 </head>
 <body>
 <main id="main"></main>
