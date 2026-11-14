@@ -576,7 +576,7 @@ function todayView(){
   const d=summary(),owed=S.customers.reduce((s,c)=>s+Math.max(bal(c.id),0),0),need=groups().filter(x=>x.cs.length&&x.st>=2).length,old=(S.customers.length+S.orders.length)>0&&Date.now()-S.lb>6048e5;
   const plan=aiTour();
   const next=S.tourHide===day0()?'<button class="linkbtn" style="display:block;margin:0 auto 10px" onclick="restoreTour()">↩ رجّع اقتراح الجولة</button>':plan.list.length
-    ?`<div class="card hero" style="position:relative"><button aria-label="إخفاء" onclick="hideTour()" style="position:absolute;top:10px;left:10px;width:44px;height:44px;border-radius:50%;border:0;background:rgba(0,0,0,.18);color:var(--prt);font-size:20px;cursor:pointer">✕</button><div class="mu" style="padding-left:48px">الخطوة الجاية${plan.pinned?' • اختيار المساعد 🤖':plan.alt?' • جولة بديلة':''}</div><div class="hn">ابدأ بجولة مركز ${e(plan.mz)}</div><div class="hs">${e(plan.list.map(x=>gname(x)).join(' • '))}</div><a class="btn" style="background:var(--surf);color:var(--pr);margin:12px 0 0;box-shadow:none" target="_blank" rel="noopener" href="${e(tourHref(plan.list))}">🧭 افتح المسار على الخرائط</a><div class="row" style="margin-top:8px;gap:8px"><button class="btn t sm" onclick="showTour()">🗺 على الخريطة</button><button class="btn t sm" onclick="nextTour()">🔄 جولة تانية</button></div></div>`
+    ?`<div class="card hero" style="position:relative"><button aria-label="إخفاء" onclick="hideTour()" style="position:absolute;top:10px;left:10px;width:44px;height:44px;border-radius:50%;border:0;background:rgba(0,0,0,.18);color:var(--prt);font-size:20px;cursor:pointer">✕</button><div class="mu" style="padding-left:48px">الخطوة الجاية${plan.pinned?' • اختيار المساعد 🤖':plan.alt?' • جولة بديلة':''}</div><div class="hn">ابدأ بجولة مركز ${e(plan.mz)}</div><div class="hs">${e(plan.list.map(x=>gname(x)).join(' • '))}</div><a class="btn" style="background:var(--surf);color:var(--pr);margin:12px 0 0;box-shadow:none" target="_blank" rel="noopener" href="${e(tourHref(plan.list))}">🧭 افتح المسار على الخرائط</a><div class="row" style="margin-top:8px;gap:8px"><button class="btn t sm" onclick="nextTour()">🔄 جولة تانية</button></div></div>`
     :`<div class="card" style="text-align:center"><div style="font-size:30px">🎉</div><b>مفيش قرى محتاجة زيارة دلوقتي</b><div class="mu">كل قرى عملائك اتزارت في مواعيدها</div></div>`;
   const rep=encodeURIComponent(`تقرير اليوم\nالزيارات: ${d.v}\nالطلبات: ${d.o}\nالتحصيلات: ${d.c} جنيه`);
   return screenHead('اليوم',e(new Date().toLocaleDateString('ar-EG',{weekday:'long',day:'numeric',month:'long'})))+`
@@ -592,12 +592,7 @@ function todayView(){
   </div>
   <h2>أعمال سريعة</h2>
   <div class="grid3">
-    <button class="tile" onclick="go('cov')"><span class="ti">📍</span>الزيارات</button>
-    <button class="tile" onclick="v={tab:'today',pg:'msg'};render()"><span class="ti">💬</span>رسائل</button>
-    <button class="tile" onclick="v={tab:'today',pg:'trk'};render()"><span class="ti">🛣</span>خط السير</button>
-    <button class="tile" onclick="v={tab:'today',pg:'rep'};render()"><span class="ti">📈</span>التقارير</button>
     <a class="tile" target="_blank" rel="noopener" href="https://wa.me/?text=${rep}"><span class="ti">📤</span>تقرير واتساب</a>
-    <button class="tile" onclick="v={tab:'today',pg:'set'};render()"><span class="ti">⚙️</span>الإعدادات</button>
   </div>`}
 function setView(){return `${back("go('today')")}<h2>النسخ الاحتياطي</h2>
   <p class="mu">آخر نسخة: ${S.lb?dt(S.lb):'لسه مفيش'}</p>
@@ -1270,7 +1265,6 @@ function covView(){covList=groups();const all=[...new Set([...MZ,'بدون مر�
   <select onchange="cmk=this.value;render()"><option value="">كل المراكز</option>${all.map(m=>`<option${m===cmk?' selected':''}>${m}</option>`).join('')}</select>
   <div class="row"><div class="card" style="text-align:center;padding:10px"><div class="red" style="font-size:28px;font-weight:700">${n([3])}</div><div class="mu">لم تُزر خالص</div></div><div class="card" style="text-align:center;padding:10px"><div class="red" style="font-size:28px;font-weight:700">${n([2])}</div><div class="mu">متأخرة</div></div><div class="card" style="text-align:center;padding:10px"><div class="grn" style="font-size:28px;font-weight:700">${n([0,1])}</div><div class="mu">تمام</div></div></div>
   <p class="mu" style="margin-top:-2px">الأرقام دي لقرى عملائك. القرية بتتحسب متزارة لو زرت أي عميل فيها أو عملت له طلب أو تحصيل. المدة المطلوبة: كل ${S.cyc} يوم.</p>
-  ${nv||nl?`<div class="card"><b>🚀 تجهيز العملاء القدام (مرة واحدة)</b><p class="mu" style="margin:6px 0">${nv} عميل من غير زيارة مسجلة، و${nl} من غير موقع. الزرار بيسجّل لكل واحد زيارة واحدة تمت بالفعل (بتاريخ انت بتحدده)، ويحط موقعه التقريبي من قريته على الخريطة (محتاج إنترنت).</p><button class="btn" style="margin:0" onclick="setupOld()">🚀 جهّز العملاء القدام</button></div>`:''}
   ${tour.length?`<h2>جولة النهارده المقترحة${bm?': '+bm:''}</h2><p class="mu" style="margin-top:-8px">أكتر قرى عملاء محتاجة زيارة في المركز ده</p>${tour.length>1?`<button class="btn t" data-href="${e(tourHref(tour))}" data-n="${tour.length}" data-from="${S.home?e(S.home.n):'موقعك'}" onclick="routeSheet(this)">🧭 مسار الجولة (${tour.length} قرى)</button>`:''}`+tour.map(covCard).join(''):(own.length?'<p class="mu">كل قرى عملائك تمام 🎉</p>':'<p class="mu">ضيف عملاء الأول.</p>')}
   ${fresh.length?'<h2>قرى جديدة تزورها</h2><p class="mu" style="margin-top:-8px">لسه مفيهاش عملاء ومزرتهاش</p>'+fresh.map(covCard).join(''):''}
   ${all.filter(m=>L.some(x=>x.mz===m)).map(m=>{const gl=L.filter(x=>x.mz===m).sort((a,b)=>(b.cs.length>0)-(a.cs.length>0)||ord(a,b)),o=gl.filter(x=>x.cs.length);return `<details class="card"${cmk?' open':''}><summary style="min-height:44px;font-weight:700">${m} <span class="mu">• ${gl.length} قرية • 🔴 ${o.filter(x=>x.st===3).length} • 🟠 ${o.filter(x=>x.st===2).length}</span></summary>${gl.map(covCard).join('')}</details>`}).join('')}
@@ -1614,10 +1608,10 @@ function agSuggest(){if(AGC&&Date.now()-AGC.t<15000)return AGC.l;
   L.sort((a,b)=>b.p-a.p);AGC={t:Date.now(),l:L};return L}
 function agSugHtml(l,n){if(!l.length)return '<div class="mu" style="padding:6px 0">مفيش اقتراحات دلوقتي، كل حاجة ماشية تمام 👌</div>';
   return `<div class="agsg"><div class="agsgh">💡 المساعد بيقترح</div>`+l.slice(0,n).map(x=>`<div class="sg"><div class="sgi">${x.ic}</div><div class="grow"><b>${x.t}</b><div class="sb">${x.d}</div><div class="row">${x.b}<button class="btn t sm" onclick="agDismiss('${x.id}')">تجاهل</button></div></div></div>`).join('')+(l.length>n?`<button class="btn t sm" onclick="agOpen()">كل الاقتراحات (${l.length})</button>`:'')+'</div>'}
-const _agr=agRefresh;agRefresh=function(){_agr();const f=$('agfab');if(!f)return;let l=[];try{l=agSuggest()}catch(_){}f.dataset.n=l.length||'';
+const _agr=agRefresh;agRefresh=function(){_agr();const f=$('agfab');if(!f)return;let l=[];try{l=agSuggest()}catch(_){}f.dataset.n='';
   if(document.body.classList.contains('agopen')&&aiMsgs.length<=AG0)$('agr').innerHTML=agSugHtml(l,8)};
 const _p4=polish;polish=function(){_p4();const mn=$('main');if(!mn||v.pg||v.cid||!unl||!(v.tab==='cov'||v.tab==='today')||mn.querySelector('.agsg'))return;
-  const a=mn.querySelector('.qa')||mn.querySelector('.sh');if(!a)return;let l=[];try{l=agSuggest()}catch(_){}if(l.length)a.insertAdjacentHTML('afterend',agSugHtml(l,3))};
+  const a=mn.querySelector('.qa')||mn.querySelector('.sh');if(!a)return;let l=[];try{l=agSuggest()}catch(_){}/* suggestion cards removed from screens; still reachable inside the assistant panel (💡 chip) */};
 const _agc2=agChips;agChips=function(){return '<button onclick="AG0=aiMsgs.length;agRefresh()">💡 اقتراحاتي</button>'+_agc2()};
 const AXNW=(()=>{const m={'واحد':1,'واحدة':1,'اتنين':2,'اثنين':2,'تنين':2,'تلاتة':3,'ثلاثة':3,'اربعة':4,'أربعة':4,'خمسة':5,'ستة':6,'سبعة':7,'تمانية':8,'ثمانية':8,'تسعة':9,'عشرة':10,'عشرين':20,'تلاتين':30,'ثلاثين':30,'اربعين':40,'أربعين':40,'خمسين':50,'ستين':60,'سبعين':70,'تمانين':80,'ثمانين':80,'تسعين':90,'مية':100,'مئة':100,'ميتين':200,'مائتين':200,'تلتمية':300,'تلاتمية':300,'ربعمية':400,'خمسمية':500,'ستمية':600,'سبعمية':700,'تمنمية':800,'تسعمية':900,'الف':1000,'ألف':1000,'الاف':1000,'آلاف':1000,'الفين':2000};const o={};Object.keys(m).forEach(k=>o[anorm(k)]=m[k]);return o})();
 function axAmount(s){s=String(s||'').replace(/\d{9,}/g,' ');const d=s.match(/\d{1,8}(?:\.\d+)?/);if(d)return parseFloat(d[0]);
@@ -2182,7 +2176,7 @@ function axMorningHtml(dismiss){const m=axMorningData(),h=new Date().getHours();
   <div class="axl">💵 تحصيل متوقع النهارده: <b>${axMoney(m.exp)}</b>${m.debt?' <span class="mu">من مديونيات '+axMoney(m.debt)+' على المسار (تقدير من دفعاتهم السابقة)</span>':''}</div>
   ${m.yc?`<div class="axl mu">امبارح اتحصّل ${axMoney(m.yc)}</div>`:''}
   <div class="axl">📦 ${m.so.length?'هتخلص قريب: '+m.so.map(x=>e(x.p.name)+' (يكفي '+Math.max(0,Math.floor(x.left))+' يوم)').join('، '):'مفيش منتج هيخلص خلال 10 أيام'}${m.low?' • '+m.low+' تحت الحد':''}</div>
-  <div class="row" style="margin-top:8px;flex-wrap:wrap"><button class="btn sm" onclick="agDo('نظم زيارات النهارده')">📋 الخطة</button><button class="btn t sm" onclick="agDo('مسار مثالي')">🛣 المسار</button>${dismiss?'<button class="btn t sm" onclick="axMornDone()">تمام ✔</button>':''}</div></div>`}
+  <div class="row" style="margin-top:8px;flex-wrap:wrap">${dismiss?'<button class="btn t sm" onclick="axMornDone()">تمام ✔</button>':''}</div></div>`}
 function axMornDone(){S.morn=day0();save();render()}
 const BKC='fs_bk',BKL='fs_bk_last';let bkT=null,bkDirty=false,bkMsg='',bkSnaps=[];
 const bkCfg=()=>{try{return JSON.parse(localStorage.getItem(BKC))||{}}catch(_){return{}}},bkSet=c=>{try{localStorage.setItem(BKC,JSON.stringify(c))}catch(_){}};
@@ -2234,7 +2228,7 @@ function bkView(){const c=bkCfg(),a=bkAge();
   <div class="card mu">على الآيفون: ضيف التطبيق للشاشة الرئيسية. سفاري بيمسح بيانات المواقع اللي مش مثبّتة بعد أسبوع من عدم الاستخدام.</div>`}
 const _mv6=mapView;mapView=function(){return v.aicfg?axCfgView():v.bk?(bkAll().then(l=>{if(JSON.stringify(l.map(x=>x.t))!==JSON.stringify(bkSnaps.map(x=>x.t))){bkSnaps=l;if(v.bk)render()}}).catch(()=>{}),bkView()):_mv6()};
 const _agc5=agChips;agChips=function(){return _agc5()+`<button onclick="agClose();CFGD=null;CFGMSG='';v={tab:'map',aicfg:1};render()">⚙️ مزوّد الذكاء</button><button onclick="agClose();v={tab:'map',bk:1};render()">💾 النسخ الاحتياطي</button><button onclick="agAsk('تقرير الصباح')">☀️ تقرير الصباح</button>`};
-const _p5=polish;polish=function(){_p5();const mn=$('main');if(!mn||v.pg||v.cid||!unl||!(v.tab==='cov'||v.tab==='today'))return;const a=mn.querySelector('.qa')||mn.querySelector('.sh');if(!a)return;
+const _p5=polish;polish=function(){_p5();const mn=$('main');if(!mn||v.pg||v.cid||!unl||v.tab!=='today')return;const a=mn.querySelector('.qa')||mn.querySelector('.sh');if(!a)return;
   try{let h='';if(!mn.querySelector('.morn')&&(S.morn||0)!==day0()&&S.customers.length)h+=axMorningHtml(true);if(!mn.querySelector('.bkb'))h+=bkBanner().replace('class="alert amb"','class="alert amb bkb"');if(h)a.insertAdjacentHTML('afterend',h)}catch(_){}};
 const _aiLocal6=aiLocal;aiLocal=function(q){const n=anorm(q);
   if(/(تقرير الصبح|تقرير الصباح|صباح الخير|ملخص الصباح)/.test(n))return axMorningHtml(false);
@@ -3883,7 +3877,7 @@ gmLinks=function(st){
   return `<div class="card" style="margin:8px 0;${dn?'opacity:.5':''}"><div class="stat" style="font-size:16px;align-items:flex-start"><span><b>${e(nm(x))}</b>${x.a[0].approx?' <span class="mu">• موقع تقريبي</span>':''}<br>${x.a.map(c=>`<span class="mu" style="cursor:pointer;line-height:2" onclick="open_('${c.id}')">• ${e(c.name)}</span>`).join('<br>')}</span><span style="display:flex;gap:6px;flex:none"><a class="btn t sm" style="width:auto;padding:8px 12px;margin:0" target="_blank" rel="noopener" href="${e(dest)}">🧭</a><button class="btn sm" style="width:auto;padding:8px 12px;margin:0" onclick="hubDone(${i})">${dn?'↩':'✔'}</button></span></div></div>`});
  return `<div class="card" style="margin:10px 0"><div style="font-size:17px"><b>${left.length}</b> مكان باقي من ${g.length}</div><div class="mu" style="margin:4px 0 10px">${left.reduce((s,x)=>s+x.a.length,0)} عميل${km?' • حوالي '+km+' كم • '+mi+' دقيقة قيادة (تقريبي)':''}</div>`
   +(url?`<a class="btn" target="_blank" rel="noopener" href="${e(url)}">🚀 ابدأ: أقرب ${nx.length} أماكن</a>`:'<div class="mu">خلّصت كل الأماكن 🎉</div>')
-  +`<div class="row" style="gap:8px;margin-top:8px"><button class="btn t sm" onclick="hubGps()">📍 رتّب من موقعي</button><a class="btn t sm" target="_blank" rel="noopener" href="${e(wt)}">📤 واتساب</a><button class="btn t sm" onclick="hubReset()">↺ من الأول</button></div></div>`+rw.filter((_,i)=>nx.includes(g[i])).join('')+(g.length>nx.length?`<details class="card" style="margin:8px 0"><summary style="cursor:pointer">باقي الأماكن (${g.length-nx.length})</summary>${rw.filter((_,i)=>!nx.includes(g[i])).join('')}</details>`:'')};
+  +`<div class="row" style="gap:8px;margin-top:8px"><a class="btn t sm" target="_blank" rel="noopener" href="${e(wt)}">📤 واتساب</a><button class="btn t sm" onclick="hubReset()">↺ من الأول</button></div></div>`+rw.filter((_,i)=>nx.includes(g[i])).join('')+(g.length>nx.length?`<details class="card" style="margin:8px 0"><summary style="cursor:pointer">باقي الأماكن (${g.length-nx.length})</summary>${rw.filter((_,i)=>!nx.includes(g[i])).join('')}</details>`:'')};
 const hubCompact=h=>{let n=0;const cut=h.indexOf('<h2>حسب المركز</h2>');
  const o=h.replace(/<div class="card">(<b>(?:(?!<div class="card">)[\s\S])*?<\/b>(?: <span class="mu">\([^<]*\)<\/span>)?)((?:(?!<div class="card">)[\s\S])*?)(<a class="btn t"[^>]*>🧭[^<]*<\/a>)<\/div>/g,(m,t,r,b,off)=>{const hid=off<cut&&++n>5;return `<details class="card${hid?' hubx':''}" style="padding:12px 14px;${hid?'display:none':''}"><summary style="cursor:pointer;list-style:none;display:flex;justify-content:space-between">${t}<span class="mu">‹ التفاصيل</span></summary>${r}${b}</details>`});
  return n>5?o.replace('<h2>حسب المركز</h2>',`<button class="btn t" onclick="document.querySelectorAll('.hubx').forEach(x=>x.style.display='');this.remove()">عرض باقي المجموعات (${n-5})</button><h2>حسب المركز</h2>`):o};
@@ -3891,7 +3885,7 @@ const hubCompact=h=>{let n=0;const cut=h.indexOf('<h2>حسب المركز</h2>')
 const _m=mapView;
 mapView=function(){const h=_m();if(v.bk||v.hub)return h;const a=v.rte?'r':v.tour?'t':'m';
  const c=(k,t,f)=>`<button onclick="${f}" style="flex:none;white-space:nowrap;border:0;border-radius:20px;padding:10px 14px;font:inherit;cursor:pointer;${a===k?'background:var(--pr);color:var(--prt)':'background:var(--surf);color:var(--tx)'}">${t}</button>`;
- return `<div style="display:flex;gap:8px;overflow-x:auto;padding:6px 0 10px">${c('r','🧭 الجولة الذكية',"v={tab:'map',rte:1};render()")}${c('t','🗺 أماكن الجولة',"hubTour()")}${c('m','👥 العملاء على الخريطة',"v={tab:'map'};render()")}${c('c','📍 الزيارات',"go('cov')")}</div>`+(a==='m'?hubCompact(h):h)};
+ return `<div style="display:flex;gap:8px;overflow-x:auto;padding:6px 0 10px">${c('r','🧭 الجولة الذكية',"v={tab:'map',rte:1};render()")}${c('t','🗺 أماكن الجولة',"hubTour()")}${c('m','👥 العملاء على الخريطة',"v={tab:'map'};render()")}</div>`+(a==='m'?hubCompact(h):h)};
 // one entry tile in "المزيد" instead of two
 const _mo=moreView;
 moreView=function(){let h=_mo();h=h.replace(/<button class="tile" onclick="go\('map'\)">[\s\S]*?<\/button>/,'').replace(/<button class="tile" onclick="v=\{tab:'map',rte:1\};render\(\)">[\s\S]*?<\/button>/,'');
